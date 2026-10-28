@@ -19,7 +19,7 @@ jobs:
     runs-on: macos-26
     timeout-minutes: 30
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
       - name: Toolchain
         run: xcodebuild -version && xcrun swift --version
       - name: Gate (build, tests, lint, secret scan, exposeSecret audit, every platform)
@@ -39,7 +39,7 @@ jobs:
     timeout-minutes: 30
     container: swift:6.2
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
       - name: Tests
         run: scripts/test.sh
       - name: Summary
