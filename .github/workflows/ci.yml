@@ -1,0 +1,47 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  macos:
+    name: macOS (full gate)
+    runs-on: macos-26
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+      - name: Toolchain
+        run: xcodebuild -version && xcrun swift --version
+      - name: Gate (build, tests, lint, secret scan, exposeSecret audit, every platform)
+        run: scripts/ci.sh --platforms
+      - name: Summary
+        if: always()
+        run: cat build/ci-summary.md >> "$GITHUB_STEP_SUMMARY"
+      - uses: actions/upload-artifact@v4
+        if: failure()
+        with:
+          name: ci-logs
+          path: build/*.log
+
+  linux:
+    name: Linux (interface)
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    container: swift:6.2
+    steps:
+      - uses: actions/checkout@v4
+      - name: Tests
+        run: scripts/test.sh
+      - name: Summary
+        if: always()
+        run: cat build/test-summary.md >> "$GITHUB_STEP_SUMMARY"

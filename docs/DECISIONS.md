@@ -1,0 +1,63 @@
+# Decisions
+
+Choices the spec (`docs/PLAN.md`) leaves open. Each has a number; code that depends on one cites it.
+
+## D-1 · Clients are declared with `@DependencyClient`
+The macro writes the initialiser, labelled methods and an unimplemented default for each endpoint, so
+`testValue` is `KeychainClient()`, and a test that reaches an endpoint it didn't override fails, naming it.
+Non-throwing endpoints (`exists`, `stream`, `isAvailable`) carry a default return value, so an unimplemented call
+records an issue without crashing. The interface (`Keychain`) and the live values (`KeychainLive`) are separate
+products: feature modules and their tests never link Security.
+
+## D-2 · macOS uses the data protection keychain by default
+`live(…, dataProtection: true)` adds `kSecUseDataProtectionKeychain` on macOS, so items behave as on iOS
+(accessibility classes, access groups, access control). It needs the `keychain-access-groups` entitlement;
+without it the error is `KeychainError.missingEntitlement`. `swift test` binaries are unsigned, so the live tests
+pass `dataProtection: false` (the file-based login keychain).
+
+## D-3 · Deleting a missing item succeeds
+`delete` and `deleteKey` are idempotent. Callers (log out, reset) want "absent afterwards", and a throw for an
+already-absent item only adds a `try?` at every call site. `load` still throws `itemNotFound`;
+`loadIfPresent` returns `nil` instead.
+
+## D-4 · Streams see this client's writes only, and never prompt
+There is no public notification for keychain changes, so `stream` yields after writes made through the same
+client instance (the live store's actor, or the in-memory actor). Changes by another process, an app extension or
+another client instance are not seen. `liveValue` is a `static let`, so one app shares one instance.
+
+The first value is read without a prompt. For an item behind an authentication gate that read is refused, so the
+stream yields nothing first and starts with the next change. A save of a gated item yields `nil`, not the value:
+a stream must not reveal what a read would gate. `exists`, `keys` and `publicKey` also never prompt; a gated item
+"exists".
+
+## D-5 · Save is an upsert; a gated item is replaced, not updated
+`SecItemAdd`, and on `errSecDuplicateItem`:
+- for an ungated save, `SecItemUpdate` with a no-prompt context (atomic);
+- for a gated save, or when the existing item is gated (the update would prompt), delete then add.
+If the item disappeared between the add and the update (another process), the add is retried.
+
+## D-6 · Secure Enclave handles live in their own service
+The live `SecureEnclaveClient` keeps each key's encrypted handle as a generic password in
+`"<service>.secure-enclave"`, account `"<purpose>.<tag>"`. So `KeychainClient.deleteAll()` never deletes keys,
+and a signing key and a key-agreement key may share a tag. The handle is stored ungated with the key's
+accessibility; the gate is on the private key, enforced by the enclave at each use.
+
+## D-7 · Secure Enclave keys are CryptoKit keys, not `SecKey`s
+CryptoKit's `SecureEnclave.P256` types are value types with a portable `dataRepresentation`, and they do signing
+and ECDH directly. The trade-off: the keys are not `kSecClassKey` items, so `SecKey`-based APIs can't find them
+by tag. Public keys cross the API as X9.63 bytes (`SecureEnclavePublicKey`).
+
+## D-8 · Errors are mapped, never passed through
+`errSecUserCanceled`, `errSecAuthFailed`, `errSecInteractionNotAllowed` and any `LAError` become
+`authenticationFailed`; `errSecMissingEntitlement` becomes `missingEntitlement`; a malformed peer key or handle of
+the wrong purpose becomes `invalidKey`. Other statuses keep their `OSStatus` in `saveFailed`, `loadFailed`,
+`deleteFailed`. No case carries bytes, so any error can be logged.
+
+## D-9 · `Secret` is neither `Codable` nor `Hashable`
+`Codable` would let a secret slip into JSON; a hash is a fingerprint of the value. `==` is kept (tests need it),
+constant-time for `Data` and `String`.
+
+## D-10 · The in-memory doubles simulate prompts with a closure
+`inMemory(authenticate:)` takes `(KeychainAuthentication, AuthContext?) async -> Bool`, called on each read of a
+gated item (or use of a gated Secure Enclave key). The default lets every read through; a test of the refusal path
+passes `{ _, _ in false }`. Prefilled entries keep their key's gate.
