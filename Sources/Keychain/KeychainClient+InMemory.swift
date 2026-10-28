@@ -44,6 +44,7 @@ extension KeychainClient {
     save: { _, _, _, _ in },
     load: { _, _ in throw KeychainError.itemNotFound },
     delete: { _ in },
+    rename: { _, _ in throw KeychainError.itemNotFound },
     deleteAll: {},
     exists: { _ in false },
     keys: { [] },
@@ -93,6 +94,7 @@ extension KeychainClient {
       },
       load: { key, context in try await storage.load(key: key, context: context) },
       delete: { key in await storage.delete(key: key) },
+      rename: { key, newKey in try await storage.rename(key: key, to: newKey) },
       deleteAll: { await storage.deleteAll() },
       exists: { key in await storage.exists(key: key) },
       keys: { await storage.keys() },
@@ -136,6 +138,16 @@ private actor InMemoryKeychain {
   func delete(key: String) {
     guard items.removeValue(forKey: key) != nil else { return }
     subscribers.yield(nil, for: key)
+  }
+
+  func rename(key: String, to newKey: String) throws {
+    guard let item = items[key] else { throw KeychainError.itemNotFound }
+    guard key != newKey else { return }
+    items[key] = nil
+    items[newKey] = item
+    subscribers.yield(nil, for: key)
+    // Like a save: a gated item is never sent to streams.
+    subscribers.yield(item.authentication == .none ? Secret(item.data) : nil, for: newKey)
   }
 
   func deleteAll() {

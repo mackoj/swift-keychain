@@ -9,6 +9,7 @@
 - [x] Tag `0.1.0`
 
 ## Next
+- [x] `rename(_:to:)`: move an item to another key without reading it (D-11)
 - [ ] DocC catalog with the README's guide as articles; publish with GitHub Pages
 - [ ] Live tests on iOS Simulator through `xcodebuild test` (data protection keychain, entitled host app)
 - [ ] `SecureEnclavePublicKey` helpers: PEM / DER (SubjectPublicKeyInfo) export for servers

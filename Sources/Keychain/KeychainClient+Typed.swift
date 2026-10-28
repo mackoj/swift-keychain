@@ -36,6 +36,13 @@ extension KeychainClient {
     try await delete(key.rawValue)
   }
 
+  /// Moves the item under `key` to `newKey`, keeping its bytes and protection, without a prompt.
+  /// An item already under `newKey` is replaced (D-11).
+  /// - Throws: `KeychainError.itemNotFound` when there is no item under `key`.
+  public func rename<Value>(_ key: KeychainKey<Value>, to newKey: KeychainKey<Value>) async throws {
+    try await rename(key.rawValue, newKey.rawValue)
+  }
+
   /// Whether an item exists under `key`. Never prompts.
   public func exists<Value>(for key: KeychainKey<Value>) async -> Bool {
     await exists(key.rawValue)

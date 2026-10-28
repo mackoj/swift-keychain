@@ -13,6 +13,7 @@
   extension KeychainKey where Value == String {
     fileprivate static let token = KeychainKey("token")
     fileprivate static let other = KeychainKey("other")
+    fileprivate static let renamed = KeychainKey("renamed")
   }
 
   /// A live keychain on a fresh service, emptied after `body` whether it threw or not.
@@ -68,6 +69,21 @@
 
           #expect(try await mine.keys() == [])
           #expect(try await theirs.load(for: .token) == Secret("theirs"))
+        }
+      }
+    }
+
+    @Test func renameMovesTheItemAndReplacesTheTarget() async throws {
+      try await withLiveKeychain { keychain in
+        try await keychain.save(Secret("one"), for: .token)
+        try await keychain.save(Secret("old"), for: .renamed)
+
+        try await keychain.rename(.token, to: .renamed)
+
+        #expect(try await keychain.keys() == ["renamed"])
+        #expect(try await keychain.load(for: .renamed) == Secret("one"))
+        await #expect(throws: KeychainError.itemNotFound) {
+          try await keychain.rename(.token, to: .renamed)
         }
       }
     }
