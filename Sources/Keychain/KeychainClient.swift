@@ -4,17 +4,18 @@ import Foundation
 
 /// Reads and writes generic-password keychain items.
 ///
-/// The closures are the raw, byte-level interface that implementations provide
-/// (`KeychainLive`'s `.live(…)`, `.inMemory(…)`, or one written inline in a test). App code
-/// uses the typed methods in `KeychainClient+Typed.swift`, addressed by `KeychainKey`.
+/// Call it through the typed methods in `KeychainClient+Typed.swift`, addressed by
+/// `KeychainKey`. The string-keyed closures below are the byte-level interface the package's own
+/// implementations fill in (`KeychainLive`'s `.live(…)`, `.inMemory(…)`, `.noop`, `.failing(_:)`);
+/// they and the memberwise initializer are `package`, so code outside this package never spells
+/// a raw account string (D-12). `deleteAll` and `keys` take no key, so they stay callable.
 ///
-/// `@DependencyClient` generates the memberwise initializer, labelled methods for each
-/// closure, and an "unimplemented" default for each endpoint: a test that reaches an endpoint
-/// it didn't override fails, and says which one.
+/// `@DependencyClient` generates the memberwise initializer and an "unimplemented" default for
+/// each endpoint: a test that reaches an endpoint it didn't expect fails, and says which one.
 @DependencyClient
 public struct KeychainClient: Sendable {
   /// Saves `data` under `key`, replacing any existing item (upsert).
-  public var save:
+  package var save:
     @Sendable (
       _ data: Secret<Data>,
       _ key: String,
@@ -24,28 +25,29 @@ public struct KeychainClient: Sendable {
 
   /// Loads the bytes under `key`. Throws `KeychainError.itemNotFound` when there is none.
   /// Pass an evaluated `AuthContext` to read a protected item without another prompt.
-  public var load: @Sendable (_ key: String, _ context: AuthContext?) async throws -> Secret<Data>
+  package var load: @Sendable (_ key: String, _ context: AuthContext?) async throws -> Secret<Data>
 
   /// Deletes the item under `key`. Deleting a missing item succeeds (D-3).
-  public var delete: @Sendable (_ key: String) async throws -> Void
+  package var delete: @Sendable (_ key: String) async throws -> Void
 
   /// Moves the item under `key` to `newKey` without reading its bytes, so it never prompts,
   /// even for a gated item. The item keeps its protection. An item already under `newKey` is
   /// replaced. Throws `KeychainError.itemNotFound` when there is no item under `key` (D-11).
-  public var rename: @Sendable (_ key: String, _ newKey: String) async throws -> Void
+  package var rename: @Sendable (_ key: String, _ newKey: String) async throws -> Void
 
   /// Deletes every item of this client's service (and access group), and nothing else.
-  public var deleteAll: @Sendable () async throws -> Void
+  public package(set) var deleteAll: @Sendable () async throws -> Void
 
   /// Whether an item exists under `key`. Never prompts for authentication and never throws.
-  public var exists: @Sendable (_ key: String) async -> Bool = { _ in false }
+  package var exists: @Sendable (_ key: String) async -> Bool = { _ in false }
 
-  /// The keys of every item of this client's service, sorted. Never prompts.
-  public var keys: @Sendable () async throws -> [String]
+  /// The account (`KeychainKey.rawValue`) of every item of this client's service, sorted.
+  /// Never prompts. `keys(_:)` turns them into typed keys.
+  public package(set) var keys: @Sendable () async throws -> [String]
 
   /// The value under `key` now, then again after each change made through this client.
   /// `nil` means absent. See `stream(for:)` for the details.
-  public var stream: @Sendable (_ key: String) -> AsyncStream<Secret<Data>?> = { _ in
+  package var stream: @Sendable (_ key: String) -> AsyncStream<Secret<Data>?> = { _ in
     AsyncStream { $0.finish() }
   }
 }
