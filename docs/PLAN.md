@@ -12,14 +12,15 @@ It is a rewrite, not a fork, of the ideas in `dktunited/swift-dependencies-keych
 ## 2. What it provides
 
 ### 2.1 `KeychainClient` (generic passwords)
-- Byte-level endpoints declared with `@DependencyClient`: `save`, `load`, `delete`, `deleteAll`, `exists`, `keys`,
-  `stream`.
-- A typed layer on `KeychainKey<Value>`: `save(_:for:)`, `load(for:context:)`, `loadIfPresent(for:context:)`,
-  `delete(for:)`, `exists(for:)`, `stream(for:)`.
+- Byte-level endpoints declared with `@DependencyClient`: `save`, `load`, `delete`, `rename`, `deleteAll`,
+  `exists`, `keys`, `stream`. The string-keyed ones and the memberwise initialiser are `package` (D-12);
+  `deleteAll()` and `keys()` are public to call.
+- The public API, on `KeychainKey<Value>`: `save(_:for:)`, `load(for:context:)`, `loadIfPresent(for:context:)`,
+  `delete(for:)`, `rename(_:to:)`, `exists(for:)`, `keys(_:)`, `stream(for:)`.
 - `KeychainKey` initialisers for `Data` (as is), `String` (UTF-8), `Codable` (JSON) and custom closures. A key
   carries its accessibility and authentication gate.
 - Implementations: `.live(service:accessGroup:dataProtection:)` (and `liveValue`), `.inMemory(authenticate:
-  prefilling:)`, `.noop`, and the macro's unimplemented `testValue`.
+  prefilling:)`, `.noop`, `.failing(_:)`, and the macro's unimplemented `testValue`.
 
 ### 2.2 `SecureEnclaveClient` (P-256 keys)
 - Endpoints: `isAvailable`, `createKey`, `publicKey`, `deleteKey`, `sign`, `sharedSecret`.

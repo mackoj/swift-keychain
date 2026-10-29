@@ -68,3 +68,15 @@ interaction, so a gated item moves without a prompt and keeps its protection. Th
 (`itemNotFound` otherwise); an item already under the target key is deleted first, like an upsert. Streams see
 `nil` on the old key and, on the new key, what a save would send (`nil` for a gated item, D-4). Callers that keep
 several items per logical name (one per environment, say) rename each with `keys()`, without reading values.
+
+## D-12 · Typed keys are the only public way in
+The string-keyed endpoints (`save`, `load`, `delete`, `rename`, `exists`, `stream`) and the memberwise
+initialiser are `package`: `KeychainLive` and the tests, in the same package, build and call them; code outside
+cannot, so an account string is spelled once, in a `KeychainKey`. `package` rather than `internal` because
+`KeychainLive` is another module, and rather than `@_spi` because an SPI import can be written by anyone.
+`deleteAll` and `keys` take no key and stay `public package(set)`: callable, not replaceable. `keys()` returns
+accounts (a caller that encodes its own data in accounts parses them); `keys(_:)` maps them to typed keys. A
+`KeychainKey` is still made from any string, so a stored item of unknown origin stays reachable.
+The cost: a test can no longer replace a single endpoint. The doubles cover it: `testValue` (unimplemented),
+`.inMemory(authenticate:prefilling:)` (prompts simulated, D-10), `.noop`, and `.failing(_:)`, which throws one
+`KeychainError` on every call (a missing entitlement, a refused prompt).

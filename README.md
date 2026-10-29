@@ -4,7 +4,7 @@ A testable, type-safe keychain and Secure Enclave for Swift, as two
 [swift-dependencies](https://github.com/pointfreeco/swift-dependencies) clients.
 
 - **Typed keys.** A `KeychainKey<Value>` knows its account, protection and serialization; call sites never
-  spell a raw string.
+  spell a raw string. The typed methods are the whole public API: there is no string-keyed `save` or `load`.
 - **Opaque secrets.** Values come back as `Secret<Value>`, which prints as `Secret<String>(redacted)`, isn't
   `Codable`, and compares in constant time. `exposeSecret()` is the one way out, and CI tracks every call site.
 - **Secure Enclave.** P-256 signing and key agreement with keys that never leave the device, typed by purpose.
@@ -14,7 +14,7 @@ A testable, type-safe keychain and Secure Enclave for Swift, as two
 ## Installation
 
 ```swift
-.package(url: "https://github.com/mackoj/swift-keychain", from: "0.1.0"),
+.package(url: "https://github.com/mackoj/swift-keychain", from: "0.3.0"),
 ```
 
 | Product | Add it to | Links |
@@ -81,8 +81,17 @@ struct Session {
 | `loadIfPresent(for:context:)` | `nil` when absent. |
 | `delete(for:)`, `deleteAll()` | Succeed when there is nothing to delete. `deleteAll` touches this service only. |
 | `rename(_:to:)` | Moves an item to another key without reading it, so it never prompts; replaces the target. |
+| `keys()`, `keys(_:)` | The accounts of this service's items, sorted; `keys(_:)` maps them to typed keys. |
 | `exists(for:)`, `keys()`, `rename(_:to:)` | Never prompt, even for protected items. |
 | `stream(for:)` | The current value, then each change made through this client. |
+
+To enumerate items, map their accounts back to keys, for example to rename every item of a family (D-11):
+
+```swift
+let tokens = try await keychain.keys { account in
+  account.hasPrefix("token.") ? KeychainKey<String>(account) : nil
+}
+```
 
 ### Protected items
 
@@ -170,9 +179,10 @@ struct SessionTests {
 
 | Double | Use |
 |---|---|
-| `KeychainClient()` / `testValue` | Default in tests. Any call fails the test, naming the endpoint. |
+| `testValue` | Default in tests. Any call fails the test, naming the endpoint. |
 | `.inMemory(authenticate:prefilling:)` | A working store. `authenticate` decides each simulated prompt. |
 | `.noop` | Accepts everything, stores nothing. |
+| `.failing(_:)` | Every throwing call throws the given `KeychainError`; `exists` is `false`. |
 | `SecureEnclaveClient.inMemory(authenticate:)` | Software P-256 keys; signatures verify. |
 
 ```swift
@@ -184,13 +194,14 @@ await #expect(throws: KeychainError.authenticationFailed) {
   try await keychain.load(for: .vaultPassword)
 }
 
-// One endpoint stubbed
+// A keychain that refuses access
 withDependencies {
-  $0.keychain.load = { @Sendable _, _ in throw KeychainError.authenticationFailed }
+  $0.keychain = .failing(.authenticationFailed)
 } operation: { … }
 ```
 
-Previews get in-memory clients automatically.
+Previews get in-memory clients automatically. The string-keyed endpoints and the memberwise initialiser are
+`package`, so a test cannot replace one endpoint; build the store it needs from these doubles (D-12).
 
 ## Design notes
 

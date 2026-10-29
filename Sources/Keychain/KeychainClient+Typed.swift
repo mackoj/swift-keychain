@@ -1,6 +1,6 @@
 import Foundation
 
-// The call-site API: typed keys in, `Secret` values out. The byte-level closures stay plumbing.
+// The public API: typed keys in, `Secret` values out. The byte-level closures are `package` (D-12).
 
 extension KeychainClient {
   /// Encodes `secret` with the key's `encode` and saves it with the key's protection.
@@ -46,6 +46,20 @@ extension KeychainClient {
   /// Whether an item exists under `key`. Never prompts.
   public func exists<Value>(for key: KeychainKey<Value>) async -> Bool {
     await exists(key.rawValue)
+  }
+
+  /// The typed keys of this client's items, in account order. `key` turns an account into its
+  /// key, or returns `nil` to skip it. Never prompts.
+  ///
+  /// ```swift
+  /// let tokens = try await keychain.keys { account in
+  ///   account.hasPrefix("token.") ? KeychainKey<String>(account) : nil
+  /// }
+  /// ```
+  public func keys<Value>(
+    _ key: (_ account: String) throws -> KeychainKey<Value>?
+  ) async throws -> [KeychainKey<Value>] {
+    try await keys().compactMap(key)
   }
 
   /// The value under `key` now, then again after each change made through this client.

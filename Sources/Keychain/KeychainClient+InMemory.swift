@@ -56,6 +56,25 @@ extension KeychainClient {
     }
   )
 
+  /// A client whose every throwing call throws `error`: a keychain that refuses access, such as
+  /// one missing its entitlement. `exists` is `false`; streams finish without a value.
+  ///
+  /// ```swift
+  /// let keychain = KeychainClient.failing(.missingEntitlement)
+  /// ```
+  public static func failing(_ error: KeychainError) -> KeychainClient {
+    KeychainClient(
+      save: { _, _, _, _ in throw error },
+      load: { _, _ in throw error },
+      delete: { _ in throw error },
+      rename: { _, _ in throw error },
+      deleteAll: { throw error },
+      exists: { _ in false },
+      keys: { throw error },
+      stream: { _ in AsyncStream { $0.finish() } }
+    )
+  }
+
   /// A working keychain held in memory. Each call returns an independent store.
   ///
   /// ```swift

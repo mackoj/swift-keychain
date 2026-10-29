@@ -43,7 +43,7 @@ struct KeychainClientTests {
   @Test func undecodableBytesThrowDecodingFailed() async throws {
     let keychain = KeychainClient.inMemory()
 
-    try await keychain.save(Secret(Data([0xFF, 0xFE])), "auth.token", .afterFirstUnlock, .none)
+    try await keychain.save(Secret(Data([0xFF, 0xFE])), for: KeychainKey<Data>("auth.token"))
 
     await #expect(throws: KeychainError.decodingFailed) {
       try await keychain.load(for: .authToken)
@@ -70,6 +70,21 @@ struct KeychainClientTests {
     #expect(try await keychain.keys() == ["auth.token", "crypto.encryption-key"])
     try await keychain.deleteAll()
     #expect(try await keychain.keys() == [])
+  }
+
+  @Test func keysAsTypedKeys() async throws {
+    let keychain = try KeychainClient.inMemory {
+      try KeychainEntry(Secret("t0k3n"), for: .authToken)
+      try KeychainEntry(Secret("moved"), for: .renamedToken)
+      try KeychainEntry(Secret(Data([1])), for: .encryptionKey)
+    }
+
+    let tokens = try await keychain.keys { account in
+      account.hasPrefix("auth.") ? KeychainKey<String>(account) : nil
+    }
+
+    #expect(tokens.map(\.rawValue) == ["auth.token", "auth.token.renamed"])
+    #expect(try await keychain.load(for: tokens[1]) == Secret("moved"))
   }
 
   @Test func prefilledItemsKeepTheirAuthenticationGate() async throws {
@@ -178,6 +193,23 @@ struct KeychainClientTests {
     #expect(await values.next() == .some(nil))
   }
 
+  @Test func failingThrowsOnEveryCall() async throws {
+    let keychain = KeychainClient.failing(.missingEntitlement)
+
+    await #expect(throws: KeychainError.missingEntitlement) {
+      try await keychain.save(Secret("t0k3n"), for: .authToken)
+    }
+    await #expect(throws: KeychainError.missingEntitlement) {
+      try await keychain.load(for: .authToken)
+    }
+    await #expect(throws: KeychainError.missingEntitlement) {
+      try await keychain.keys()
+    }
+    #expect(await keychain.exists(for: .authToken) == false)
+    var values = keychain.stream(for: .authToken).makeAsyncIterator()
+    #expect(await values.next() == nil)
+  }
+
   @Test func noopStoresNothing() async throws {
     let keychain = KeychainClient.noop
 
@@ -211,20 +243,20 @@ struct KeychainDependencyTests {
     #expect(try await session.bearer() == "Bearer t0k3n")
   }
 
-  @Test func overrideASingleEndpoint() async throws {
-    let bearer = try await withDependencies {
-      $0.keychain.load = { @Sendable _, _ in Secret(Data("stubbed".utf8)) }
-    } operation: {
-      try await Session().bearer()
+  @Test func aFailingKeychain() async throws {
+    await #expect(throws: KeychainError.authenticationFailed) {
+      try await withDependencies {
+        $0.keychain = .failing(.authenticationFailed)
+      } operation: {
+        try await Session().bearer()
+      }
     }
-
-    #expect(bearer == "Bearer stubbed")
   }
 
   @Test func unimplementedEndpointFailsTheTest() async throws {
     await withKnownIssue {
       try await withDependencies {
-        $0.keychain = KeychainClient()
+        $0.keychain = .testValue
       } operation: {
         _ = try await Session().bearer()
       }
