@@ -9,6 +9,11 @@ struct Credentials: Codable, Equatable, Sendable {
 extension KeychainKey where Value == String {
   static let authToken = KeychainKey("auth.token")
   static let vaultPassword = KeychainKey("vault.password", authentication: .biometricOrPasscode)
+  static let renamedToken = KeychainKey("auth.token.renamed")
+  static let renamedVaultPassword = KeychainKey(
+    "vault.password.renamed",
+    authentication: .biometricOrPasscode
+  )
 }
 
 extension KeychainKey where Value == Data {

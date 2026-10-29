@@ -40,6 +40,7 @@
         },
         load: { key, context in Secret(try await store.load(key: key, context: context)) },
         delete: { key in try await store.delete(key: key) },
+        rename: { key, newKey in try await store.rename(key: key, to: newKey) },
         deleteAll: { try await store.deleteAll() },
         exists: { key in await store.exists(key: key) },
         keys: { try await store.keys() },

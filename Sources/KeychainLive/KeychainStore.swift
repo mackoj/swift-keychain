@@ -115,6 +115,25 @@
       }
     }
 
+    // MARK: Rename
+
+    /// Changes the item's account attribute: its bytes are never read, so no prompt (D-11).
+    func rename(key: String, to newKey: String) throws {
+      guard exists(key: key) else { throw KeychainError.itemNotFound }
+      guard key != newKey else { return }
+      let replaced = SecItemDelete(baseQuery(key: newKey) as CFDictionary)
+      guard replaced == errSecSuccess || replaced == errSecItemNotFound else {
+        throw error(replaced, else: .deleteFailed(replaced))
+      }
+      let match = Self.withoutPrompt(baseQuery(key: key))
+      let changes = [kSecAttrAccount: newKey] as CFDictionary
+      let status = SecItemUpdate(match as CFDictionary, changes)
+      guard status == errSecSuccess else { throw error(status, else: .saveFailed(status)) }
+      subscribers.yield(nil, for: key)
+      // Like a save: a gated item is never sent to streams, and this read never prompts.
+      subscribers.yield((try? loadWithoutPrompt(key: newKey))?.map { Secret($0) }, for: newKey)
+    }
+
     func deleteAll() throws {
       let query = serviceQuery()
       // The file-based macOS keychain deletes one match per call; loop until none is left.

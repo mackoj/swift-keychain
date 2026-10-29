@@ -80,7 +80,8 @@ struct Session {
 | `load(for:context:)` | Throws `.itemNotFound` when absent. |
 | `loadIfPresent(for:context:)` | `nil` when absent. |
 | `delete(for:)`, `deleteAll()` | Succeed when there is nothing to delete. `deleteAll` touches this service only. |
-| `exists(for:)`, `keys()` | Never prompt, even for protected items. |
+| `rename(_:to:)` | Moves an item to another key without reading it, so it never prompts; replaces the target. |
+| `exists(for:)`, `keys()`, `rename(_:to:)` | Never prompt, even for protected items. |
 | `stream(for:)` | The current value, then each change made through this client. |
 
 ### Protected items

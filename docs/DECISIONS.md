@@ -61,3 +61,10 @@ constant-time for `Data` and `String`.
 `inMemory(authenticate:)` takes `(KeychainAuthentication, AuthContext?) async -> Bool`, called on each read of a
 gated item (or use of a gated Secure Enclave key). The default lets every read through; a test of the refusal path
 passes `{ _, _ in false }`. Prefilled entries keep their key's gate.
+
+## D-11 · Rename moves the account attribute, never the bytes
+`rename(_:to:)` changes the item's `kSecAttrAccount` with `SecItemUpdate`, under a context that refuses
+interaction, so a gated item moves without a prompt and keeps its protection. The source must exist
+(`itemNotFound` otherwise); an item already under the target key is deleted first, like an upsert. Streams see
+`nil` on the old key and, on the new key, what a save would send (`nil` for a gated item, D-4). Callers that keep
+several items per logical name (one per environment, say) rename each with `keys()`, without reading values.

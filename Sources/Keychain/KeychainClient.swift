@@ -29,6 +29,11 @@ public struct KeychainClient: Sendable {
   /// Deletes the item under `key`. Deleting a missing item succeeds (D-3).
   public var delete: @Sendable (_ key: String) async throws -> Void
 
+  /// Moves the item under `key` to `newKey` without reading its bytes, so it never prompts,
+  /// even for a gated item. The item keeps its protection. An item already under `newKey` is
+  /// replaced. Throws `KeychainError.itemNotFound` when there is no item under `key` (D-11).
+  public var rename: @Sendable (_ key: String, _ newKey: String) async throws -> Void
+
   /// Deletes every item of this client's service (and access group), and nothing else.
   public var deleteAll: @Sendable () async throws -> Void
 

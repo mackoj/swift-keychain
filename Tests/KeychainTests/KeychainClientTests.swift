@@ -98,6 +98,63 @@ struct KeychainClientTests {
     #expect(gates.value == [.biometricOrPasscode])
   }
 
+  @Test func renameMovesTheItemAndReplacesTheTarget() async throws {
+    let keychain = try KeychainClient.inMemory {
+      try KeychainEntry(Secret("t0k3n"), for: .authToken)
+      try KeychainEntry(Secret("old"), for: .renamedToken)
+    }
+
+    try await keychain.rename(.authToken, to: .renamedToken)
+
+    #expect(try await keychain.keys() == ["auth.token.renamed"])
+    #expect(try await keychain.load(for: .renamedToken) == Secret("t0k3n"))
+  }
+
+  @Test func renameOfAGatedItemNeverPromptsAndKeepsTheGate() async throws {
+    let prompts = LockIsolated(0)
+    let keychain = try KeychainClient.inMemory(authenticate: { _, _ in
+      prompts.withValue { $0 += 1 }
+      return false
+    }) {
+      try KeychainEntry(Secret("open sesame"), for: .vaultPassword)
+    }
+
+    try await keychain.rename(.vaultPassword, to: .renamedVaultPassword)
+
+    #expect(prompts.value == 0)
+    #expect(await keychain.exists(for: .renamedVaultPassword))
+    await #expect(throws: KeychainError.authenticationFailed) {
+      try await keychain.load(for: .renamedVaultPassword)
+    }
+  }
+
+  @Test func renameOfAMissingItemThrowsItemNotFound() async throws {
+    let keychain = try KeychainClient.inMemory {
+      try KeychainEntry(Secret("kept"), for: .renamedToken)
+    }
+
+    await #expect(throws: KeychainError.itemNotFound) {
+      try await keychain.rename(.authToken, to: .renamedToken)
+    }
+
+    #expect(try await keychain.load(for: .renamedToken) == Secret("kept"))
+  }
+
+  @Test func renameNotifiesBothStreams() async throws {
+    let keychain = try KeychainClient.inMemory {
+      try KeychainEntry(Secret("t0k3n"), for: .authToken)
+    }
+    var old = keychain.stream(for: .authToken).makeAsyncIterator()
+    var new = keychain.stream(for: .renamedToken).makeAsyncIterator()
+    #expect(await old.next() == Secret("t0k3n"))
+    #expect(await new.next() == .some(nil))
+
+    try await keychain.rename(.authToken, to: .renamedToken)
+
+    #expect(await old.next() == .some(nil))
+    #expect(await new.next() == Secret("t0k3n"))
+  }
+
   @Test func streamYieldsCurrentValueThenChanges() async throws {
     let keychain = KeychainClient.inMemory()
     try await keychain.save(Secret("one"), for: .authToken)
