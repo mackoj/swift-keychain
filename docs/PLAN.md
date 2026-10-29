@@ -12,11 +12,13 @@ It is a rewrite, not a fork, of the ideas in `dktunited/swift-dependencies-keych
 ## 2. What it provides
 
 ### 2.1 `KeychainClient` (generic passwords)
-- Byte-level endpoints declared with `@DependencyClient`: `save`, `load`, `delete`, `rename`, `deleteAll`,
-  `exists`, `keys`, `stream`. The string-keyed ones and the memberwise initialiser are `package` (D-12);
+- Byte-level endpoints declared with `@DependencyClient`: `save`, `load`, `delete`, `rename`, `attributes`,
+  `updateAttributes`, `deleteAll`, `exists`, `keys`, `stream`. The string-keyed ones and the memberwise initialiser are `package` (D-12);
   `deleteAll()` and `keys()` are public to call.
-- The public API, on `KeychainKey<Value>`: `save(_:for:)`, `load(for:context:)`, `loadIfPresent(for:context:)`,
-  `delete(for:)`, `rename(_:to:)`, `exists(for:)`, `keys(_:)`, `stream(for:)`.
+- The public API, on `KeychainKey<Value>`: `save(_:for:attributes:)`, `load(for:context:)`,
+  `loadIfPresent(for:context:)`, `delete(for:)`, `rename(_:to:)`, `attributes(for:)`, `updateAttributes(_:for:)`,
+  `exists(for:)`, `keys(_:)`, `stream(for:)`.
+- `KeychainItemAttributes`: an item's label and comment, read and changed without its data (D-13).
 - `KeychainKey` initialisers for `Data` (as is), `String` (UTF-8), `Codable` (JSON) and custom closures. A key
   carries its accessibility and authentication gate.
 - Implementations: `.live(service:accessGroup:dataProtection:)` (and `liveValue`), `.inMemory(authenticate:

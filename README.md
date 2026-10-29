@@ -45,6 +45,10 @@ struct Credentials: Codable, Sendable { var username: String; var pin: String }
 extension KeychainKey where Value == Credentials {
   static let credentials = KeychainKey("user.credentials")  // stored as JSON
 }
+
+extension KeychainKey where Value == [String: String] {
+  static let vault = KeychainKey("vault")  // stored as JSON
+}
 ```
 
 `String` keys store UTF-8, `Data` keys store bytes as is, `Codable` keys store JSON. For anything else, pass
@@ -76,13 +80,15 @@ struct Session {
 
 | Method | Behaviour |
 |---|---|
-| `save(_:for:)` | Upsert, with the key's protection. |
+| `save(_:for:attributes:)` | Upsert, with the key's protection. `attributes` set the label and comment; omitted, they are kept. |
 | `load(for:context:)` | Throws `.itemNotFound` when absent. |
 | `loadIfPresent(for:context:)` | `nil` when absent. |
 | `delete(for:)`, `deleteAll()` | Succeed when there is nothing to delete. `deleteAll` touches this service only. |
 | `rename(_:to:)` | Moves an item to another key without reading it, so it never prompts; replaces the target. |
 | `keys()`, `keys(_:)` | The accounts of this service's items, sorted; `keys(_:)` maps them to typed keys. |
-| `exists(for:)`, `keys()`, `rename(_:to:)` | Never prompt, even for protected items. |
+| `attributes(for:)` | The item's label and comment, read without its data; `nil` when absent. |
+| `updateAttributes(_:for:)` | Replaces the label and comment without rewriting the data; throws `.itemNotFound` when absent. |
+| `exists(for:)`, `keys()`, `rename(_:to:)`, `attributes(for:)`, `updateAttributes(_:for:)` | Never prompt, even for protected items. |
 | `stream(for:)` | The current value, then each change made through this client. |
 
 To enumerate items, map their accounts back to keys, for example to rename every item of a family (D-11):
@@ -92,6 +98,21 @@ let tokens = try await keychain.keys { account in
   account.hasPrefix("token.") ? KeychainKey<String>(account) : nil
 }
 ```
+
+### Labels and comments
+
+An item can carry a label (the name Keychain Access shows) and a comment. They are read and changed without the
+item's data, so neither shows a prompt, even for a protected item. Use them for what you must know without reading
+the secret, such as the entries a vault item holds. They are stored in the clear: never put a secret in them.
+
+```swift
+try await keychain.save(Secret(vault), for: .vault, attributes: .init(label: "My App vault", comment: "github\nstripe"))
+let entries = try await keychain.attributes(for: .vault)?.comment?.split(separator: "\n") ?? []
+try await keychain.updateAttributes(.init(label: "My App vault", comment: "github"), for: .vault)
+```
+
+A save without `attributes:` keeps the item's label and comment, and `rename(_:to:)` moves them with the item.
+`updateAttributes(_:for:)` replaces both: a `nil` field removes it (D-13).
 
 ### Protected items
 
@@ -188,8 +209,9 @@ struct SessionTests {
 ```swift
 // Prefilled, with every prompt refused
 let keychain = try KeychainClient.inMemory(authenticate: { _, _ in false }) {
-  try KeychainEntry(Secret("open sesame"), for: .vaultPassword)
+  try KeychainEntry(Secret("open sesame"), for: .vaultPassword, attributes: .init(label: "Vault"))
 }
+#expect(try await keychain.attributes(for: .vaultPassword)?.label == "Vault")  // no prompt
 await #expect(throws: KeychainError.authenticationFailed) {
   try await keychain.load(for: .vaultPassword)
 }

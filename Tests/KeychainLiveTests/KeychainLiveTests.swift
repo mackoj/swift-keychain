@@ -88,6 +88,35 @@
       }
     }
 
+    @Test func attributesAreSavedReadAndUpdatedWithoutTheData() async throws {
+      try await withLiveKeychain { keychain in
+        #expect(try await keychain.attributes(for: .token) == nil)
+        try await keychain.save(
+          Secret("one"),
+          for: .token,
+          attributes: .init(label: "Token", comment: "a\nb")
+        )
+        #expect(
+          try await keychain.attributes(for: .token) == .init(label: "Token", comment: "a\nb")
+        )
+
+        try await keychain.updateAttributes(.init(comment: "c"), for: .token)
+        #expect(try await keychain.attributes(for: .token) == .init(comment: "c"))
+        #expect(try await keychain.load(for: .token) == Secret("one"))
+
+        try await keychain.save(Secret("two"), for: .token)
+        #expect(try await keychain.attributes(for: .token) == .init(comment: "c"))
+        try await keychain.save(Secret("three"), for: .token, attributes: .init(label: "L"))
+        #expect(try await keychain.attributes(for: .token) == .init(label: "L"))
+
+        try await keychain.rename(.token, to: .renamed)
+        #expect(try await keychain.attributes(for: .renamed) == .init(label: "L"))
+        await #expect(throws: KeychainError.itemNotFound) {
+          try await keychain.updateAttributes(.init(), for: .token)
+        }
+      }
+    }
+
     @Test func streamYieldsCurrentValueThenChanges() async throws {
       try await withLiveKeychain { keychain in
         try await keychain.save(Secret("one"), for: .token)

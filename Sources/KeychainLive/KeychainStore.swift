@@ -29,7 +29,8 @@
       _ data: Data,
       key: String,
       accessibility: KeychainAccessibility,
-      authentication: KeychainAuthentication
+      authentication: KeychainAuthentication,
+      attributes: KeychainItemAttributes?
     ) throws {
       var protection: [CFString: Any] = [:]
       if authentication == .none {
@@ -41,16 +42,18 @@
 
       var add = baseQuery(key: key).merging(protection) { $1 }
       add[kSecValueData] = data
+      if let attributes { add.merge(attributes.added) { $1 } }
       var status = SecItemAdd(add as CFDictionary, nil)
 
       if status == errSecDuplicateItem {
         if authentication == .none {
           // Update in place: atomic, and the existing item is ungated so no prompt.
-          var attributes = protection
-          attributes[kSecValueData] = data
+          var changes = protection
+          changes[kSecValueData] = data
+          if let attributes { changes.merge(attributes.changes) { $1 } }
           // If the existing item is gated, fail instead of prompting, and replace it below.
           let match = Self.withoutPrompt(baseQuery(key: key))
-          status = SecItemUpdate(match as CFDictionary, attributes as CFDictionary)
+          status = SecItemUpdate(match as CFDictionary, changes as CFDictionary)
         } else {
           status = errSecItemNotFound
         }
@@ -59,6 +62,10 @@
         if status == errSecItemNotFound || status == errSecInteractionNotAllowed
           || status == errSecAuthFailed
         {
+          if attributes == nil, let kept = try? self.attributes(key: key) {
+            // The replacement keeps the replaced item's attributes, read without a prompt (D-13).
+            add.merge(kept.added) { $1 }
+          }
           SecItemDelete(baseQuery(key: key) as CFDictionary)
           status = SecItemAdd(add as CFDictionary, nil)
         }
@@ -132,6 +139,33 @@
       subscribers.yield(nil, for: key)
       // Like a save: a gated item is never sent to streams, and this read never prompts.
       subscribers.yield((try? loadWithoutPrompt(key: newKey))?.map { Secret($0) }, for: newKey)
+    }
+
+    // MARK: Attributes
+
+    /// Reads the attributes only (`kSecReturnAttributes`, never `kSecReturnData`), under a context
+    /// that refuses interaction: no prompt, even for a gated item (D-13).
+    func attributes(key: String) throws -> KeychainItemAttributes? {
+      var query = baseQuery(key: key)
+      query[kSecReturnAttributes] = true
+      query[kSecMatchLimit] = kSecMatchLimitOne
+      var result: AnyObject?
+      let status = SecItemCopyMatching(Self.withoutPrompt(query) as CFDictionary, &result)
+      if status == errSecItemNotFound { return nil }
+      guard status == errSecSuccess else { throw error(status, else: .loadFailed(status)) }
+      let item = result as? [CFString: Any] ?? [:]
+      return KeychainItemAttributes(
+        label: item[kSecAttrLabel] as? String,
+        comment: item[kSecAttrComment] as? String
+      ).normalized
+    }
+
+    /// Changes the label and comment with `SecItemUpdate`, without the data: no read, no rewrite,
+    /// no prompt, and the item keeps its protection (D-13).
+    func updateAttributes(_ attributes: KeychainItemAttributes, key: String) throws {
+      let match = Self.withoutPrompt(baseQuery(key: key))
+      let status = SecItemUpdate(match as CFDictionary, attributes.changes as CFDictionary)
+      guard status == errSecSuccess else { throw error(status, else: .saveFailed(status)) }
     }
 
     func deleteAll() throws {
@@ -237,6 +271,22 @@
   }
 
   // MARK: - Security mappings
+
+  extension KeychainItemAttributes {
+    /// For `SecItemAdd`: only the attributes that have a value.
+    var added: [CFString: Any] {
+      var attributes: [CFString: Any] = [:]
+      let normalized = normalized
+      if let label = normalized.label { attributes[kSecAttrLabel] = label }
+      if let comment = normalized.comment { attributes[kSecAttrComment] = comment }
+      return attributes
+    }
+
+    /// For `SecItemUpdate`: both attributes, a missing one as an empty string, which clears it.
+    var changes: [CFString: Any] {
+      [kSecAttrLabel: label ?? "", kSecAttrComment: comment ?? ""]
+    }
+  }
 
   extension KeychainAccessibility {
     var cfValue: CFString {

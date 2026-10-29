@@ -29,18 +29,23 @@
         dataProtection: dataProtection
       )
       return KeychainClient(
-        save: { secret, key, accessibility, authentication in
+        save: { secret, key, accessibility, authentication, attributes in
           // exposeSecret: SecItemAdd takes the bytes.
           try await store.save(
             secret.exposeSecret(),
             key: key,
             accessibility: accessibility,
-            authentication: authentication
+            authentication: authentication,
+            attributes: attributes
           )
         },
         load: { key, context in Secret(try await store.load(key: key, context: context)) },
         delete: { key in try await store.delete(key: key) },
         rename: { key, newKey in try await store.rename(key: key, to: newKey) },
+        attributes: { key in try await store.attributes(key: key) },
+        updateAttributes: { key, attributes in
+          try await store.updateAttributes(attributes, key: key)
+        },
         deleteAll: { try await store.deleteAll() },
         exists: { key in await store.exists(key: key) },
         keys: { try await store.keys() },
