@@ -4,10 +4,17 @@ import Foundation
 
 extension KeychainClient {
   /// Encodes `secret` with the key's `encode` and saves it with the key's protection.
-  public func save<Value>(_ secret: Secret<Value>, for key: KeychainKey<Value>) async throws {
+  ///
+  /// - Parameter attributes: The item's label and comment, replacing those it had. `nil` (the
+  ///   default) keeps the attributes of the item it replaces (D-13).
+  public func save<Value>(
+    _ secret: Secret<Value>,
+    for key: KeychainKey<Value>,
+    attributes: KeychainItemAttributes? = nil
+  ) async throws {
     // exposeSecret: encoding to bytes for storage.
     let data = try key.encode(secret.exposeSecret())
-    try await save(Secret(data), key.rawValue, key.accessibility, key.authentication)
+    try await save(Secret(data), key.rawValue, key.accessibility, key.authentication, attributes)
   }
 
   /// Loads and decodes the value under `key`.
@@ -41,6 +48,27 @@ extension KeychainClient {
   /// - Throws: `KeychainError.itemNotFound` when there is no item under `key`.
   public func rename<Value>(_ key: KeychainKey<Value>, to newKey: KeychainKey<Value>) async throws {
     try await rename(key.rawValue, newKey.rawValue)
+  }
+
+  /// The label and comment of the item under `key`, or `nil` when there is no item.
+  ///
+  /// Reads the item's attributes only, never its data, so it never prompts, even for a gated item
+  /// (D-13).
+  public func attributes<Value>(for key: KeychainKey<Value>) async throws
+    -> KeychainItemAttributes?
+  {
+    try await attributes(key.rawValue)
+  }
+
+  /// Replaces the label and comment of the item under `key`; a `nil` field removes that
+  /// attribute. The data is neither read nor rewritten, so it never prompts and the item keeps
+  /// its protection (D-13).
+  /// - Throws: `KeychainError.itemNotFound` when there is no item under `key`.
+  public func updateAttributes<Value>(
+    _ attributes: KeychainItemAttributes,
+    for key: KeychainKey<Value>
+  ) async throws {
+    try await updateAttributes(key.rawValue, attributes)
   }
 
   /// Whether an item exists under `key`. Never prompts.

@@ -58,7 +58,8 @@
             handle,
             key: key.account,
             accessibility: key.accessibility.keychainAccessibility,
-            authentication: .none
+            authentication: .none,
+            attributes: nil
           )
           return SecureEnclavePublicKey(x963Representation: publicKey)
         },

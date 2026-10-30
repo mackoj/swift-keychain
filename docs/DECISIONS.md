@@ -80,3 +80,21 @@ accounts (a caller that encodes its own data in accounts parses them); `keys(_:)
 The cost: a test can no longer replace a single endpoint. The doubles cover it: `testValue` (unimplemented),
 `.inMemory(authenticate:prefilling:)` (prompts simulated, D-10), `.noop`, and `.failing(_:)`, which throws one
 `KeychainError` on every call (a missing entitlement, a refused prompt).
+
+## D-13 · Items carry a typed label and comment, read and changed without their data
+`KeychainItemAttributes` holds an item's `kSecAttrLabel` and `kSecAttrComment`: short, non-secret strings stored
+in the clear. A caller keeps there what it must know without reading the secret, such as the list of entries a
+vault item holds, so it needs no empty marker items beside it.
+- `save(_:for:attributes:)` sets them. `nil`, the default, keeps the attributes of the item the save replaces,
+  including a gated item replaced by delete and add (D-5), so updating a value never drops its label.
+- `attributes(for:)` queries with `kSecReturnAttributes` and never `kSecReturnData`, under a context that refuses
+  interaction: no prompt, even for a gated item or a login-keychain item another code signature created. `nil`
+  when there is no item.
+- `updateAttributes(_:for:)` is a `SecItemUpdate` of the two attributes only: the data is not read or rewritten,
+  the item keeps its protection, and streams see nothing (the value did not change). It replaces both fields:
+  `nil` removes one. `itemNotFound` when there is no item, as `rename` (D-11).
+- `rename` keeps the attributes. An empty string is stored and read as no value: the keychain can't tell them
+  apart once cleared.
+- Only label and comment: they are the generic-password attributes a caller may own freely (`kSecAttrGeneric`
+  and `kSecAttrDescription` stay unused). There is no public "attributes of every item": a caller lists keys
+  with `keys(_:)` and reads the ones it needs, keeping the API typed (D-12).

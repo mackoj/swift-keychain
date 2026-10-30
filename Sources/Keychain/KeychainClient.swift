@@ -14,13 +14,15 @@ import Foundation
 /// each endpoint: a test that reaches an endpoint it didn't expect fails, and says which one.
 @DependencyClient
 public struct KeychainClient: Sendable {
-  /// Saves `data` under `key`, replacing any existing item (upsert).
+  /// Saves `data` under `key`, replacing any existing item (upsert). `attributes` replace the
+  /// item's label and comment; `nil` keeps those of the item it replaces (D-13).
   package var save:
     @Sendable (
       _ data: Secret<Data>,
       _ key: String,
       _ accessibility: KeychainAccessibility,
-      _ authentication: KeychainAuthentication
+      _ authentication: KeychainAuthentication,
+      _ attributes: KeychainItemAttributes?
     ) async throws -> Void
 
   /// Loads the bytes under `key`. Throws `KeychainError.itemNotFound` when there is none.
@@ -34,6 +36,15 @@ public struct KeychainClient: Sendable {
   /// even for a gated item. The item keeps its protection. An item already under `newKey` is
   /// replaced. Throws `KeychainError.itemNotFound` when there is no item under `key` (D-11).
   package var rename: @Sendable (_ key: String, _ newKey: String) async throws -> Void
+
+  /// The label and comment of the item under `key`, read without its data, so it never prompts.
+  /// `nil` when there is no item (D-13).
+  package var attributes: @Sendable (_ key: String) async throws -> KeychainItemAttributes?
+
+  /// Replaces the label and comment of the item under `key` without reading or rewriting its
+  /// data, so it never prompts. Throws `KeychainError.itemNotFound` when there is none (D-13).
+  package var updateAttributes:
+    @Sendable (_ key: String, _ attributes: KeychainItemAttributes) async throws -> Void
 
   /// Deletes every item of this client's service (and access group), and nothing else.
   public package(set) var deleteAll: @Sendable () async throws -> Void

@@ -20,6 +20,10 @@ extension KeychainKey where Value == Data {
   static let encryptionKey = KeychainKey("crypto.encryption-key")
 }
 
+extension KeychainKey where Value == [String: String] {
+  static let vault = KeychainKey("vault")
+}
+
 extension KeychainKey where Value == Credentials {
   static let credentials = KeychainKey("user.credentials")
 }

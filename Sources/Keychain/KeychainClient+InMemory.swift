@@ -5,13 +5,19 @@ public struct KeychainEntry: Sendable {
   let key: String
   let data: Data
   let authentication: KeychainAuthentication
+  let attributes: KeychainItemAttributes
 
   /// Encodes `secret` with `key`'s serialization and keeps its authentication gate.
-  public init<Value>(_ secret: Secret<Value>, for key: KeychainKey<Value>) throws {
+  public init<Value>(
+    _ secret: Secret<Value>,
+    for key: KeychainKey<Value>,
+    attributes: KeychainItemAttributes = .init()
+  ) throws {
     self.key = key.rawValue
     // exposeSecret: encoding to bytes for storage.
     self.data = try key.encode(secret.exposeSecret())
     self.authentication = key.authentication
+    self.attributes = attributes.normalized
   }
 }
 
@@ -39,12 +45,14 @@ public typealias Authenticator =
 
 extension KeychainClient {
   /// A client that accepts every call and stores nothing: saves succeed, loads throw
-  /// `itemNotFound`, streams yield `nil` once.
+  /// `itemNotFound`, attributes are `nil`, streams yield `nil` once.
   public static let noop = KeychainClient(
-    save: { _, _, _, _ in },
+    save: { _, _, _, _, _ in },
     load: { _, _ in throw KeychainError.itemNotFound },
     delete: { _ in },
     rename: { _, _ in throw KeychainError.itemNotFound },
+    attributes: { _ in nil },
+    updateAttributes: { _, _ in throw KeychainError.itemNotFound },
     deleteAll: {},
     exists: { _ in false },
     keys: { [] },
@@ -64,10 +72,12 @@ extension KeychainClient {
   /// ```
   public static func failing(_ error: KeychainError) -> KeychainClient {
     KeychainClient(
-      save: { _, _, _, _ in throw error },
+      save: { _, _, _, _, _ in throw error },
       load: { _, _ in throw error },
       delete: { _ in throw error },
       rename: { _, _ in throw error },
+      attributes: { _ in throw error },
+      updateAttributes: { _, _ in throw error },
       deleteAll: { throw error },
       exists: { _ in false },
       keys: { throw error },
@@ -107,13 +117,22 @@ extension KeychainClient {
   ) -> KeychainClient {
     let storage = InMemoryKeychain(entries: entries, authenticate: authenticate)
     return KeychainClient(
-      save: { secret, key, _, authentication in
+      save: { secret, key, _, authentication, attributes in
         // exposeSecret: the store holds bytes.
-        await storage.save(secret.exposeSecret(), key: key, authentication: authentication)
+        await storage.save(
+          secret.exposeSecret(),
+          key: key,
+          authentication: authentication,
+          attributes: attributes
+        )
       },
       load: { key, context in try await storage.load(key: key, context: context) },
       delete: { key in await storage.delete(key: key) },
       rename: { key, newKey in try await storage.rename(key: key, to: newKey) },
+      attributes: { key in await storage.attributes(key: key) },
+      updateAttributes: { key, attributes in
+        try await storage.updateAttributes(attributes, key: key)
+      },
       deleteAll: { await storage.deleteAll() },
       exists: { key in await storage.exists(key: key) },
       keys: { await storage.keys() },
@@ -126,6 +145,7 @@ private actor InMemoryKeychain {
   private struct Item {
     var data: Data
     var authentication: KeychainAuthentication
+    var attributes: KeychainItemAttributes
   }
 
   private var items: [String: Item] = [:]
@@ -134,13 +154,24 @@ private actor InMemoryKeychain {
 
   init(entries: [KeychainEntry], authenticate: @escaping Authenticator) {
     for entry in entries {
-      items[entry.key] = Item(data: entry.data, authentication: entry.authentication)
+      items[entry.key] = Item(
+        data: entry.data,
+        authentication: entry.authentication,
+        attributes: entry.attributes
+      )
     }
     self.authenticate = authenticate
   }
 
-  func save(_ data: Data, key: String, authentication: KeychainAuthentication) {
-    items[key] = Item(data: data, authentication: authentication)
+  func save(
+    _ data: Data,
+    key: String,
+    authentication: KeychainAuthentication,
+    attributes: KeychainItemAttributes?
+  ) {
+    // `nil` keeps the replaced item's attributes (D-13).
+    let attributes = attributes?.normalized ?? items[key]?.attributes ?? KeychainItemAttributes()
+    items[key] = Item(data: data, authentication: authentication, attributes: attributes)
     subscribers.yield(Secret(data), for: key)
   }
 
@@ -167,6 +198,13 @@ private actor InMemoryKeychain {
     subscribers.yield(nil, for: key)
     // Like a save: a gated item is never sent to streams.
     subscribers.yield(item.authentication == .none ? Secret(item.data) : nil, for: newKey)
+  }
+
+  func attributes(key: String) -> KeychainItemAttributes? { items[key]?.attributes }
+
+  func updateAttributes(_ attributes: KeychainItemAttributes, key: String) throws {
+    guard items[key] != nil else { throw KeychainError.itemNotFound }
+    items[key]?.attributes = attributes.normalized
   }
 
   func deleteAll() {

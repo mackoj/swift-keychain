@@ -170,6 +170,144 @@ struct KeychainClientTests {
     #expect(await new.next() == Secret("t0k3n"))
   }
 
+  @Test func saveWithAttributesAndReadThemBack() async throws {
+    let keychain = KeychainClient.inMemory()
+
+    try await keychain.save(
+      Secret("t0k3n"),
+      for: .authToken,
+      attributes: .init(label: "GitHub", comment: "work")
+    )
+
+    #expect(
+      try await keychain.attributes(for: .authToken) == .init(label: "GitHub", comment: "work")
+    )
+    #expect(try await keychain.load(for: .authToken) == Secret("t0k3n"))
+  }
+
+  @Test func vaultEntriesFromTheCommentWithoutReadingTheVault() async throws {
+    let keychain = KeychainClient.inMemory()
+    let vault = ["github": "g", "stripe": "s"]
+
+    try await keychain.save(
+      Secret(vault),
+      for: .vault,
+      attributes: .init(label: "My App vault", comment: "github\nstripe")
+    )
+    let entries = try await keychain.attributes(for: .vault)?.comment?.split(separator: "\n") ?? []
+    try await keychain.updateAttributes(
+      .init(label: "My App vault", comment: "github"),
+      for: .vault
+    )
+
+    #expect(entries == ["github", "stripe"])
+    #expect(try await keychain.attributes(for: .vault)?.comment == "github")
+    #expect(try await keychain.load(for: .vault) == Secret(vault))
+  }
+
+  @Test func attributesOfAMissingItemAreNil() async throws {
+    let keychain = KeychainClient.inMemory()
+
+    #expect(try await keychain.attributes(for: .authToken) == nil)
+  }
+
+  @Test func saveWithoutAttributesKeepsThem() async throws {
+    let keychain = try KeychainClient.inMemory {
+      try KeychainEntry(Secret("old"), for: .authToken, attributes: .init(comment: "work"))
+    }
+
+    try await keychain.save(Secret("new"), for: .authToken)
+
+    #expect(try await keychain.attributes(for: .authToken) == .init(comment: "work"))
+  }
+
+  @Test func saveWithAttributesReplacesThem() async throws {
+    let keychain = try KeychainClient.inMemory {
+      try KeychainEntry(Secret("old"), for: .authToken, attributes: .init(label: "a", comment: "b"))
+    }
+
+    try await keychain.save(Secret("new"), for: .authToken, attributes: .init(label: "c"))
+
+    #expect(try await keychain.attributes(for: .authToken) == .init(label: "c"))
+  }
+
+  @Test func emptyAttributesAreNoValue() async throws {
+    let keychain = KeychainClient.inMemory()
+
+    try await keychain.save(
+      Secret("t0k3n"),
+      for: .authToken,
+      attributes: .init(label: "", comment: "")
+    )
+
+    #expect(try await keychain.attributes(for: .authToken) == .init())
+  }
+
+  @Test func attributesOfAGatedItemNeverPrompt() async throws {
+    let prompts = LockIsolated(0)
+    let keychain = try KeychainClient.inMemory(authenticate: { _, _ in
+      prompts.withValue { $0 += 1 }
+      return false
+    }) {
+      try KeychainEntry(Secret("open sesame"), for: .vaultPassword, attributes: .init(comment: "a"))
+    }
+
+    let read = try await keychain.attributes(for: .vaultPassword)
+    try await keychain.updateAttributes(.init(comment: "a\nb"), for: .vaultPassword)
+
+    #expect(read == .init(comment: "a"))
+    #expect(try await keychain.attributes(for: .vaultPassword) == .init(comment: "a\nb"))
+    #expect(prompts.value == 0)
+  }
+
+  @Test func updateAttributesKeepsTheGate() async throws {
+    let prompts = LockIsolated(0)
+    let keychain = try KeychainClient.inMemory(authenticate: { _, _ in
+      prompts.withValue { $0 += 1 }
+      return true
+    }) {
+      try KeychainEntry(Secret("open sesame"), for: .vaultPassword)
+    }
+
+    try await keychain.updateAttributes(.init(label: "Vault"), for: .vaultPassword)
+
+    #expect(prompts.value == 0)
+    #expect(try await keychain.load(for: .vaultPassword) == Secret("open sesame"))
+    #expect(prompts.value == 1)
+  }
+
+  @Test func updateAttributesKeepsTheValue() async throws {
+    let keychain = try KeychainClient.inMemory {
+      try KeychainEntry(Secret("t0k3n"), for: .authToken, attributes: .init(label: "x"))
+    }
+
+    try await keychain.updateAttributes(.init(comment: "y"), for: .authToken)
+
+    #expect(try await keychain.attributes(for: .authToken) == .init(comment: "y"))
+    #expect(try await keychain.load(for: .authToken) == Secret("t0k3n"))
+  }
+
+  @Test func updateAttributesOfAMissingItemThrowsItemNotFound() async throws {
+    let keychain = KeychainClient.inMemory()
+
+    await #expect(throws: KeychainError.itemNotFound) {
+      try await keychain.updateAttributes(.init(comment: "y"), for: .authToken)
+    }
+
+    #expect(await keychain.exists(for: .authToken) == false)
+  }
+
+  @Test func renameKeepsTheAttributes() async throws {
+    let keychain = try KeychainClient.inMemory {
+      try KeychainEntry(Secret("t0k3n"), for: .authToken, attributes: .init(comment: "work"))
+    }
+
+    try await keychain.rename(.authToken, to: .renamedToken)
+
+    #expect(try await keychain.attributes(for: .renamedToken) == .init(comment: "work"))
+    #expect(try await keychain.attributes(for: .authToken) == nil)
+  }
+
   @Test func streamYieldsCurrentValueThenChanges() async throws {
     let keychain = KeychainClient.inMemory()
     try await keychain.save(Secret("one"), for: .authToken)
@@ -205,6 +343,12 @@ struct KeychainClientTests {
     await #expect(throws: KeychainError.missingEntitlement) {
       try await keychain.keys()
     }
+    await #expect(throws: KeychainError.missingEntitlement) {
+      try await keychain.attributes(for: .authToken)
+    }
+    await #expect(throws: KeychainError.missingEntitlement) {
+      try await keychain.updateAttributes(.init(), for: .authToken)
+    }
     #expect(await keychain.exists(for: .authToken) == false)
     var values = keychain.stream(for: .authToken).makeAsyncIterator()
     #expect(await values.next() == nil)
@@ -218,6 +362,7 @@ struct KeychainClientTests {
     await #expect(throws: KeychainError.itemNotFound) {
       try await keychain.load(for: .authToken)
     }
+    #expect(try await keychain.attributes(for: .authToken) == nil)
   }
 }
 
