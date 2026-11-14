@@ -43,6 +43,8 @@ A Swift package: a testable keychain and Secure Enclave, as two
   `scripts/ci.sh --platforms` also builds for iOS, tvOS, watchOS and visionOS.
 - `scripts/format.sh`: format in place.
 - `xcrun swift test --package-path Architecture`: the architecture rules alone.
+- Benchmarks: `Benchmarks/` (package-benchmark). Measure before and after a performance change and put the p50
+  table in the PR; `docs/performance.md` has the commands and what has paid off.
 
 ## Workflow
 - One branch and one PR per task; squash merge. CI (`.github/workflows/ci.yml`) must be green: macOS (full

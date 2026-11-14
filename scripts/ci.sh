@@ -23,7 +23,8 @@ step "build" build/build.log "${SWIFT[@]}" build --build-tests
 scripts/test.sh || STATUS=1
 grep -E '^- ' build/test-summary.md >> "$SUMMARY"
 step "swift-format lint" build/lint.log "${SWIFT[@]}" format lint --strict --recursive Package.swift Sources Tests \
-  Architecture/Package.swift Architecture/Tests
+  Architecture/Package.swift Architecture/Tests Benchmarks/Package.swift Benchmarks/Benchmarks \
+  Benchmarks/Tools
 step "secret scan" build/secret-scan.log scripts/secret-scan.sh
 step "exposeSecret audit" build/expose-audit.log scripts/expose-audit.sh
 step "architecture rules" build/architecture.log "${SWIFT[@]}" test --package-path Architecture

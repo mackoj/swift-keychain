@@ -24,6 +24,11 @@ jobs:
         run: xcodebuild -version && xcrun swift --version
       - name: Gate (build, tests, lint, secret scan, exposeSecret audit, architecture rules, every platform)
         run: scripts/ci.sh --platforms
+      - name: Build benchmarks (not run)
+        env:
+          # jemalloc only counts mallocs while measuring; building doesn't need it.
+          BENCHMARK_DISABLE_JEMALLOC: "true"
+        run: xcrun swift build --package-path Benchmarks
       - name: Summary
         if: always()
         run: cat build/ci-summary.md >> "$GITHUB_STEP_SUMMARY"

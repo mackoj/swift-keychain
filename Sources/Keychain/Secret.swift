@@ -39,24 +39,22 @@ extension Secret: CustomStringConvertible, CustomDebugStringConvertible, CustomR
 extension Secret: Equatable where Value: Equatable {
   public static func == (lhs: Self, rhs: Self) -> Bool {
     if let l = lhs.value as? Data, let r = rhs.value as? Data {
-      return constantTimeEquals(l, r)
+      return l.withUnsafeBytes { l in r.withUnsafeBytes { r in constantTimeEquals(l, r) } }
     }
-    if let l = lhs.value as? String, let r = rhs.value as? String {
-      return constantTimeEquals(Data(l.utf8), Data(r.utf8))
+    if var l = lhs.value as? String, var r = rhs.value as? String {
+      // Compares the UTF-8 in place: no copy of the secret into a temporary `Data`.
+      return l.withUTF8 { l in
+        r.withUTF8 { r in constantTimeEquals(UnsafeRawBufferPointer(l), UnsafeRawBufferPointer(r)) }
+      }
     }
     return lhs.value == rhs.value
   }
 }
 
 /// Compares two byte buffers in time that depends only on their length.
-@usableFromInline
-func constantTimeEquals(_ a: Data, _ b: Data) -> Bool {
+func constantTimeEquals(_ a: UnsafeRawBufferPointer, _ b: UnsafeRawBufferPointer) -> Bool {
   guard a.count == b.count else { return false }
   var diff: UInt8 = 0
-  a.withUnsafeBytes { (a: UnsafeRawBufferPointer) in
-    b.withUnsafeBytes { (b: UnsafeRawBufferPointer) in
-      for i in 0..<a.count { diff |= a[i] ^ b[i] }
-    }
-  }
+  for i in 0..<a.count { diff |= a[i] ^ b[i] }
   return diff == 0
 }
