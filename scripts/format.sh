@@ -3,4 +3,5 @@
 set -euo pipefail
 cd "$(dirname "$0")/.."
 SWIFT=(swift); command -v xcrun >/dev/null && SWIFT=(xcrun swift)
-"${SWIFT[@]}" format format --in-place --recursive Package.swift Sources Tests
+"${SWIFT[@]}" format format --in-place --recursive Package.swift Sources Tests \
+  Architecture/Package.swift Architecture/Tests

@@ -22,7 +22,7 @@ jobs:
       - uses: actions/checkout@v7
       - name: Toolchain
         run: xcodebuild -version && xcrun swift --version
-      - name: Gate (build, tests, lint, secret scan, exposeSecret audit, every platform)
+      - name: Gate (build, tests, lint, secret scan, exposeSecret audit, architecture rules, every platform)
         run: scripts/ci.sh --platforms
       - name: Summary
         if: always()

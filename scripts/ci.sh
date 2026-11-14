@@ -1,5 +1,6 @@
 #!/usr/bin/env bash
-# The full gate, as CI runs it: build, tests, swift-format lint, secret scan, exposeSecret audit.
+# The full gate, as CI runs it: build, tests, swift-format lint, secret scan, exposeSecret audit,
+# architecture rules (Architecture/, swift-llm-check).
 #   scripts/ci.sh                # macOS host
 #   scripts/ci.sh --platforms    # also build for iOS, tvOS, watchOS and visionOS (needs their SDKs)
 # Writes build/ci-summary.md and exits non-zero if any step failed.
@@ -21,9 +22,11 @@ step() { # $1 label, $2 log, rest: command
 step "build" build/build.log "${SWIFT[@]}" build --build-tests
 scripts/test.sh || STATUS=1
 grep -E '^- ' build/test-summary.md >> "$SUMMARY"
-step "swift-format lint" build/lint.log "${SWIFT[@]}" format lint --strict --recursive Package.swift Sources Tests
+step "swift-format lint" build/lint.log "${SWIFT[@]}" format lint --strict --recursive Package.swift Sources Tests \
+  Architecture/Package.swift Architecture/Tests
 step "secret scan" build/secret-scan.log scripts/secret-scan.sh
 step "exposeSecret audit" build/expose-audit.log scripts/expose-audit.sh
+step "architecture rules" build/architecture.log "${SWIFT[@]}" test --package-path Architecture
 
 if [[ "${1:-}" == "--platforms" ]]; then
   for platform in iOS tvOS watchOS visionOS; do
