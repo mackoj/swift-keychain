@@ -1,0 +1,516 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>swift-keychain · The keychain, typed and testable</title>
+<meta name="description" content="A testable, type-safe keychain and Secure Enclave for Swift: typed keys, a redacting Secret wrapper, biometric gates without surprise prompts, and in-memory doubles, as swift-dependencies clients.">
+<meta property="og:title" content="swift-keychain · The keychain, typed and testable">
+<meta property="og:description" content="Typed keys, opaque secrets, Secure Enclave signing and key agreement, and in-memory test doubles, as swift-dependencies clients. Swift 6, every Apple platform.">
+<meta property="og:type" content="website">
+<meta name="color-scheme" content="light dark">
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='7' fill='%232f6fe0'/%3E%3Crect x='9' y='14' width='14' height='11' rx='2.5' fill='%23fff'/%3E%3Cpath d='M12 14v-3a4 4 0 0 1 8 0v3' fill='none' stroke='%23fff' stroke-width='2.5'/%3E%3C/svg%3E">
+<style>
+:root {
+  --bg: #f8f9fb;
+  --surface: #ffffff;
+  --surface-2: #eef1f6;
+  --text: #151a22;
+  --muted: #535b68;
+  --line: #dde2ea;
+  --accent: #2463d6;
+  --accent-ink: #ffffff;
+  --accent-soft: #e1ebfc;
+  --code-bg: #161b24;
+  --code-text: #e6eaf1;
+  --code-muted: #8a93a3;
+  --tok-key: #ff8fb1;
+  --tok-str: #a5d6a7;
+  --tok-type: #81c7f5;
+  --tok-num: #e6c07b;
+  --shadow: 0 1px 2px rgb(21 26 34 / 6%), 0 8px 24px rgb(21 26 34 / 6%);
+  --radius: 14px;
+  --max: 1120px;
+}
+@media (prefers-color-scheme: dark) {
+  :root {
+    --bg: #0f1218;
+    --surface: #171b22;
+    --surface-2: #1e232c;
+    --text: #ecf0f6;
+    --muted: #9aa3b2;
+    --line: #2b313c;
+    --accent: #6ea2ff;
+    --accent-ink: #08142b;
+    --accent-soft: #1b2b48;
+    --code-bg: #0b0e13;
+    --shadow: 0 1px 2px rgb(0 0 0 / 30%), 0 8px 24px rgb(0 0 0 / 25%);
+  }
+}
+* { box-sizing: border-box; }
+html { scroll-behavior: smooth; }
+body {
+  margin: 0;
+  overflow-x: clip;
+  background: var(--bg);
+  color: var(--text);
+  font: 17px/1.6 -apple-system, BlinkMacSystemFont, "SF Pro Text", "Segoe UI", Inter, Roboto, sans-serif;
+  -webkit-font-smoothing: antialiased;
+}
+a { color: var(--accent); text-decoration-thickness: 1px; text-underline-offset: 3px; }
+code, pre { font: 14px/1.55 ui-monospace, "SF Mono", Menlo, Consolas, monospace; }
+/* Grid and flex children may shrink below their content, so code scrolls inside its box instead of widening the page. */
+.grid > *, .install > *, .features > *, .cases > *, .flow > *, .stats > * { min-width: 0; }
+:not(pre) > code { overflow-wrap: anywhere; background: var(--surface-2); border: 1px solid var(--line); border-radius: 6px; padding: .05em .35em; font-size: .88em; }
+.wrap { max-width: var(--max); margin: 0 auto; padding: 0 20px; }
+section { padding: 88px 0; }
+section + section { border-top: 1px solid var(--line); }
+h1, h2, h3 { line-height: 1.15; letter-spacing: -.02em; margin: 0; }
+h2 { font-size: clamp(28px, 4vw, 40px); }
+h3 { font-size: 19px; letter-spacing: -.01em; }
+.eyebrow { font-size: 13px; font-weight: 600; letter-spacing: .08em; text-transform: uppercase; color: var(--accent); margin: 0 0 12px; }
+.lead { color: var(--muted); font-size: 19px; max-width: 680px; margin: 16px 0 0; }
+
+/* Navigation */
+nav { position: sticky; top: 0; z-index: 10; background: color-mix(in srgb, var(--bg) 85%, transparent); backdrop-filter: saturate(1.4) blur(12px); border-bottom: 1px solid var(--line); }
+nav .wrap { display: flex; align-items: center; gap: 24px; height: 60px; }
+.brand { display: flex; align-items: center; gap: 10px; font-weight: 700; color: var(--text); text-decoration: none; }
+.brand svg { width: 26px; height: 26px; }
+nav .links { display: flex; gap: 22px; margin-left: auto; font-size: 15px; }
+nav .links a { color: var(--muted); text-decoration: none; }
+nav .links a:hover { color: var(--text); }
+@media (max-width: 720px) { nav .links a:not(.gh) { display: none; } }
+
+/* Hero */
+.hero { position: relative; overflow: hidden; padding: 96px 0 88px; }
+.hero::before {
+  /* A faint grid behind the title. */
+  content: ""; position: absolute; inset: 0; z-index: -1; opacity: .5;
+  background:
+    repeating-linear-gradient(90deg, var(--line) 0 1px, transparent 1px 28px),
+    repeating-linear-gradient(0deg, var(--line) 0 1px, transparent 1px 28px);
+  mask-image: radial-gradient(ellipse 70% 60% at 70% 30%, #000 10%, transparent 75%);
+}
+.hero .grid { display: grid; grid-template-columns: 1.05fr 1fr; gap: 56px; align-items: center; }
+@media (max-width: 960px) { .hero .grid { grid-template-columns: 1fr; gap: 40px; } }
+.hero h1 { font-size: clamp(40px, 6vw, 64px); }
+.hero h1 em { font-style: normal; color: var(--accent); }
+.pills { display: flex; flex-wrap: wrap; gap: 8px; margin: 0 0 22px; padding: 0; list-style: none; }
+.pills li { font-size: 13px; font-weight: 600; padding: 4px 11px; border-radius: 999px; background: var(--surface); border: 1px solid var(--line); color: var(--muted); }
+.cta { display: flex; flex-wrap: wrap; gap: 12px; margin-top: 32px; }
+.button { display: inline-flex; align-items: center; gap: 8px; padding: 12px 20px; border-radius: 10px; font-weight: 600; font-size: 16px; text-decoration: none; border: 1px solid var(--line); color: var(--text); background: var(--surface); }
+.button.primary { background: var(--accent); border-color: var(--accent); color: var(--accent-ink); }
+.button:hover { filter: brightness(1.05); }
+.button svg { width: 18px; height: 18px; }
+
+/* Code */
+.code { background: var(--code-bg); color: var(--code-text); border-radius: var(--radius); box-shadow: var(--shadow); overflow: hidden; }
+.code .bar { display: flex; align-items: center; gap: 8px; padding: 12px 16px; border-bottom: 1px solid rgb(255 255 255 / 7%); color: var(--code-muted); font-size: 13px; }
+.code .bar i { width: 11px; height: 11px; border-radius: 50%; background: #353c48; display: inline-block; }
+.code .bar span { margin-left: 8px; }
+.code pre { margin: 0; padding: 20px; overflow-x: auto; }
+.hero .code pre { font-size: 13.5px; }
+.tok-k { color: var(--tok-key); }
+.tok-s { color: var(--tok-str); }
+.tok-t { color: var(--tok-type); }
+.tok-n { color: var(--tok-num); }
+.tok-c { color: var(--code-muted); font-style: italic; }
+
+/* Why */
+.flow { display: grid; grid-template-columns: repeat(3, 1fr); gap: 16px; margin-top: 44px; counter-reset: step; }
+@media (max-width: 860px) { .flow { grid-template-columns: 1fr; } }
+.step { position: relative; background: var(--surface); border: 1px solid var(--line); border-radius: var(--radius); padding: 22px; box-shadow: var(--shadow); }
+.step::before { counter-increment: step; content: "Step " counter(step); display: block; font-size: 12px; font-weight: 700; letter-spacing: .08em; text-transform: uppercase; color: var(--accent); margin-bottom: 8px; }
+.step h3 { font-family: ui-monospace, "SF Mono", Menlo, monospace; font-size: 17px; }
+.step p { color: var(--muted); font-size: 15px; margin: 8px 0 0; }
+.step code { font-size: 12.5px; }
+.flow-note { color: var(--muted); font-size: 15px; margin-top: 18px; }
+
+/* Features */
+.features { display: grid; grid-template-columns: repeat(3, 1fr); gap: 18px; margin-top: 44px; }
+@media (max-width: 960px) { .features { grid-template-columns: repeat(2, 1fr); } }
+@media (max-width: 640px) { .features { grid-template-columns: 1fr; } }
+.feature { background: var(--surface); border: 1px solid var(--line); border-radius: var(--radius); padding: 24px; }
+.feature .icon { width: 40px; height: 40px; border-radius: 10px; background: var(--accent-soft); color: var(--accent); display: grid; place-items: center; margin-bottom: 14px; }
+.feature .icon svg { width: 22px; height: 22px; }
+.feature p { color: var(--muted); font-size: 15.5px; margin: 8px 0 0; }
+
+/* Tabs */
+.tabs { margin-top: 40px; }
+.tablist { display: flex; flex-wrap: wrap; gap: 6px; margin-bottom: 14px; }
+.tablist button { font: inherit; font-size: 15px; font-weight: 600; padding: 8px 16px; border-radius: 999px; border: 1px solid var(--line); background: var(--surface); color: var(--muted); cursor: pointer; }
+.tablist button[aria-selected="true"] { background: var(--text); border-color: var(--text); color: var(--bg); }
+.panel p { color: var(--muted); margin: 0 0 14px; max-width: 760px; }
+.js .panel[hidden] { display: none; }
+.panel + .panel { margin-top: 28px; }
+.js .panel + .panel { margin-top: 0; }
+
+/* Use cases */
+.cases { display: grid; grid-template-columns: repeat(2, 1fr); gap: 18px; margin-top: 44px; }
+@media (max-width: 760px) { .cases { grid-template-columns: 1fr; } }
+.case { padding: 24px; border-radius: var(--radius); border: 1px solid var(--line); background: var(--surface); }
+.case p { color: var(--muted); font-size: 15.5px; margin: 8px 0 0; }
+
+/* Numbers */
+.stats { display: grid; grid-template-columns: repeat(4, 1fr); gap: 18px; margin-top: 44px; }
+@media (max-width: 860px) { .stats { grid-template-columns: repeat(2, 1fr); } }
+.stat { padding: 22px; border-radius: var(--radius); background: var(--surface); border: 1px solid var(--line); }
+.stat b { display: block; font-size: 34px; letter-spacing: -.02em; line-height: 1.1; }
+.stat span { color: var(--muted); font-size: 14.5px; }
+table { width: 100%; border-collapse: collapse; margin-top: 28px; font-size: 15px; }
+th, td { text-align: left; padding: 11px 12px; border-bottom: 1px solid var(--line); }
+th { color: var(--muted); font-weight: 600; font-size: 13px; text-transform: uppercase; letter-spacing: .06em; }
+td.num { font-variant-numeric: tabular-nums; white-space: nowrap; }
+.table-scroll { overflow-x: auto; }
+.small { color: var(--muted); font-size: 14px; margin-top: 12px; }
+
+/* Install */
+.install { display: grid; grid-template-columns: 1fr 1fr; gap: 40px; align-items: start; margin-top: 40px; }
+@media (max-width: 900px) { .install { grid-template-columns: 1fr; } }
+.install ul { padding-left: 20px; color: var(--muted); }
+.install li { margin: 6px 0; }
+.copy { margin-left: auto; font: inherit; font-size: 12.5px; color: var(--code-muted); background: transparent; border: 1px solid rgb(255 255 255 / 12%); border-radius: 6px; padding: 3px 9px; cursor: pointer; }
+.copy:hover { color: var(--code-text); }
+
+footer { padding: 40px 0 56px; border-top: 1px solid var(--line); color: var(--muted); font-size: 14.5px; }
+footer .wrap { display: flex; flex-wrap: wrap; gap: 12px 28px; align-items: center; }
+footer a { color: var(--muted); }
+</style>
+
+</head>
+<body>
+<nav aria-label="Main">
+  <div class="wrap">
+    <a class="brand" href="#top">
+      <svg viewBox="0 0 32 32" aria-hidden="true"><rect width="32" height="32" rx="7" fill="#2f6fe0"/><rect x="9" y="14" width="14" height="11" rx="2.5" fill="#fff"/><path d="M12 14v-3a4 4 0 0 1 8 0v3" fill="none" stroke="#fff" stroke-width="2.5"/><circle cx="16" cy="19.5" r="1.8" fill="#2f6fe0"/></svg>
+      swift-keychain
+    </a>
+    <div class="links">
+      <a href="#problem">Why</a>
+      <a href="#features">Features</a>
+      <a href="#tour">Code tour</a>
+      <a href="#install">Install</a>
+      <a class="gh" href="https://github.com/mackoj/swift-keychain">GitHub</a>
+    </div>
+  </div>
+</nav>
+
+<main id="top">
+<section class="hero">
+  <div class="wrap grid">
+    <div>
+      <ul class="pills" aria-label="At a glance">
+        <li>Swift 6</li>
+        <li>iOS · macOS · tvOS · watchOS · visionOS</li>
+        <li>swift-dependencies</li>
+        
+      </ul>
+      <h1>The keychain,<br><em>typed and testable.</em></h1>
+      <p class="lead">Typed keys instead of account strings, a <code>Secret</code> wrapper that won't print what it holds, Secure Enclave signing and key agreement, and in-memory doubles that behave like the real store. Built as <a href="https://github.com/pointfreeco/swift-dependencies">swift-dependencies</a> clients, so every feature that reads a secret can be tested without touching Security.framework.</p>
+      <div class="cta">
+        <a class="button primary" href="#install">Get started</a>
+        <a class="button" href="https://github.com/mackoj/swift-keychain">
+          <svg viewBox="0 0 16 16" fill="currentColor" aria-hidden="true"><path d="M8 0C3.58 0 0 3.58 0 8c0 3.54 2.29 6.53 5.47 7.59.4.07.55-.17.55-.38 0-.19-.01-.82-.01-1.49-2.01.37-2.53-.49-2.69-.94-.09-.23-.48-.94-.82-1.13-.28-.15-.68-.52-.01-.53.63-.01 1.08.58 1.23.82.72 1.21 1.87.87 2.33.66.07-.52.28-.87.51-1.07-1.78-.2-3.64-.89-3.64-3.95 0-.87.31-1.59.82-2.15-.08-.2-.36-1.02.08-2.12 0 0 .67-.21 2.2.82.64-.18 1.32-.27 2-.27.68 0 1.36.09 2 .27 1.53-1.04 2.2-.82 2.2-.82.44 1.1.16 1.92.08 2.12.51.56.82 1.27.82 2.15 0 3.07-1.87 3.75-3.65 3.95.29.25.54.73.54 1.48 0 1.07-.01 1.93-.01 2.2 0 .21.15.46.55.38A8.013 8.013 0 0016 8c0-4.42-3.58-8-8-8z"/></svg>
+          View on GitHub
+        </a>
+        <a class="button" href="https://github.com/mackoj/swift-keychain#readme">Guide</a>
+      </div>
+    </div>
+    <div class="code" aria-label="Example">
+      <div class="bar"><i></i><i></i><i></i><span>Session.swift</span></div>
+<pre><code class="swift">import Dependencies
+import Keychain
+
+extension KeychainKey where Value == String {
+  static let authToken = KeychainKey("auth.token")
+}
+
+struct Session {
+  @Dependency(\.keychain) var keychain
+
+  func logIn(token: String) async throws {
+    try await keychain.save(Secret(token), for: .authToken)
+  }
+
+  func bearer() async throws -> String {
+    // exposeSecret: the header needs the token.
+    "Bearer \(try await keychain.load(for: .authToken).exposeSecret())"
+  }
+}</code></pre>
+    </div>
+  </div>
+</section>
+
+<section id="problem">
+  <div class="wrap">
+    <p class="eyebrow">Why</p>
+    <h2>The Security framework works.<br>Using it safely takes discipline.</h2>
+    <p class="lead"><code>SecItemAdd</code> and friends take a <code>CFDictionary</code> of string constants and return an <code>OSStatus</code>. Every call site spells an account name, picks an accessibility class, remembers to update rather than add, decides what <code>-25300</code> means, and gets a <code>Data</code> back that is one <code>print</code> away from a log. And none of it runs in a unit test.</p>
+    <div class="flow" aria-label="What swift-keychain changes">
+      <div class="step">
+        <h3>Declare once</h3>
+        <p>A <code>KeychainKey&lt;Value&gt;</code> holds the account, accessibility, authentication gate and serialization. Call sites name the key, never a string.</p>
+      </div>
+      <div class="step">
+        <h3>Keep it wrapped</h3>
+        <p>Reads return <code>Secret&lt;Value&gt;</code>: redacted in <code>print</code> and <code>dump</code>, not <code>Codable</code>, compared in constant time. <code>exposeSecret()</code> is the one way out.</p>
+      </div>
+      <div class="step">
+        <h3>Swap it in tests</h3>
+        <p><code>@Dependency(\.keychain)</code> is unimplemented in tests until you choose <code>.inMemory()</code>, <code>.noop</code> or <code>.failing(_:)</code>. Prompts are simulated too.</p>
+      </div>
+    </div>
+  </div>
+</section>
+
+<section id="features">
+  <div class="wrap">
+    <p class="eyebrow">Features</p>
+    <h2>Small surface, sharp edges filed off.</h2>
+    <p class="lead">Two clients, <code>KeychainClient</code> and <code>SecureEnclaveClient</code>, and the typed methods on them are the whole public API. Each choice the platform leaves open is written down as a numbered decision.</p>
+    <div class="features">
+      <div class="feature">
+        <div class="icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M20 12H4M4 12l4-4M4 12l4 4"/><path d="M14 6h6v12h-6"/></svg></div>
+        <h3>Typed keys only</h3>
+        <p><code>String</code> keys store UTF-8, <code>Data</code> keys store bytes, <code>Codable</code> keys store JSON, and anything else passes its own <code>encode</code>/<code>decode</code>. There is no string-keyed <code>save</code> or <code>load</code> to reach for.</p>
+      </div>
+      <div class="feature">
+        <div class="icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M2 12s3.5-7 10-7 10 7 10 7-3.5 7-10 7S2 12 2 12z"/><path d="M4 4l16 16"/></svg></div>
+        <h3>Secrets that stay secret</h3>
+        <p><code>Secret&lt;String&gt;(redacted)</code> in every log. Every <code>exposeSecret()</code> call site carries a comment and is counted in CI, so a new one shows up in review. Errors never carry payload bytes.</p>
+      </div>
+      <div class="feature">
+        <div class="icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="5" y="11" width="14" height="10" rx="2"/><path d="M8 11V7a4 4 0 0 1 8 0v4"/></svg></div>
+        <h3>Biometrics without surprises</h3>
+        <p>Gate an item on Face ID, Touch ID, Optic ID or the passcode. <code>exists</code>, <code>keys</code>, <code>attributes</code>, <code>rename</code> and a stream's first value never prompt; pass one <code>AuthContext</code> to cover several reads with a single prompt.</p>
+      </div>
+      <div class="feature">
+        <div class="icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 2l8 4v6c0 5-3.5 9-8 10-4.5-1-8-5-8-10V6z"/><path d="M9 12l2 2 4-4"/></svg></div>
+        <h3>Secure Enclave, typed by purpose</h3>
+        <p>P-256 keys created inside the enclave that never leave the device. <code>sign</code> takes only a <code>SecureEnclaveKey&lt;Signing&gt;</code>, <code>sharedSecret</code> only a <code>SecureEnclaveKey&lt;KeyAgreement&gt;</code>: the compiler checks the purpose.</p>
+      </div>
+      <div class="feature">
+        <div class="icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M9 3h6M10 3v6L4 19a1.5 1.5 0 0 0 1.3 2h13.4a1.5 1.5 0 0 0 1.3-2L14 9V3"/></svg></div>
+        <h3>Doubles that tell the truth</h3>
+        <p>The in-memory keychain has the same errors, stream order and label/comment rules as the live one, and an <code>authenticate</code> closure decides each simulated prompt. The Secure Enclave double makes signatures that verify.</p>
+      </div>
+      <div class="feature">
+        <div class="icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3" y="4" width="18" height="16" rx="2"/><path d="M7 9l3 3-3 3M13 15h4"/></svg></div>
+        <h3>Interface without Security</h3>
+        <p>Feature modules link <code>Keychain</code>, which never imports Security and builds on Linux. Only the app links <code>KeychainLive</code>. Streams, rename without reading, typed labels and comments come with it.</p>
+      </div>
+    </div>
+  </div>
+</section>
+
+<section id="tour">
+  <div class="wrap">
+    <p class="eyebrow">Code tour</p>
+    <h2>What it looks like in an app.</h2>
+    <div class="tabs">
+      <div class="tablist" role="tablist" aria-label="Examples">
+        <button role="tab" id="tab-keys" aria-controls="panel-keys">Keys</button>
+        <button role="tab" id="tab-protected" aria-controls="panel-protected">Protected items</button>
+        <button role="tab" id="tab-enclave" aria-controls="panel-enclave">Secure Enclave</button>
+        <button role="tab" id="tab-tests" aria-controls="panel-tests">Tests</button>
+      </div>
+
+      <div class="panel" role="tabpanel" id="panel-keys" aria-labelledby="tab-keys">
+        <p>Declare keys as static constants. Each carries its protection and serialization, so a call site can't pair an account with the wrong decoder.</p>
+        <div class="code"><div class="bar"><i></i><i></i><i></i><span>Keys.swift</span></div>
+<pre><code class="swift">import Keychain
+
+struct Credentials: Codable, Sendable { var username: String; var pin: String }
+
+extension KeychainKey where Value == Credentials {
+  static let credentials = KeychainKey("user.credentials")  // stored as JSON
+}
+
+extension KeychainKey where Value == Data {
+  static let encryptionKey = KeychainKey(
+    "crypto.encryption-key", accessibility: .whenUnlockedThisDeviceOnly)
+}
+
+let saved = Secret(Credentials(username: "ada", pin: "1815"))
+try await keychain.save(saved, for: .credentials, attributes: .init(label: "My App"))
+let credentials = try await keychain.loadIfPresent(for: .credentials)  // Secret&lt;Credentials&gt;?
+print(credentials as Any)  // Optional(Secret&lt;Credentials&gt;(redacted))</code></pre></div>
+      </div>
+
+      <div class="panel" role="tabpanel" id="panel-protected" aria-labelledby="tab-protected">
+        <p>Gate an item on the user. Evaluate an <code>LAContext</code> once to cover several reads; a cancelled prompt throws <code>KeychainError.authenticationFailed</code>.</p>
+        <div class="code"><div class="bar"><i></i><i></i><i></i><span>Vault.swift</span></div>
+<pre><code class="swift">import Keychain
+import LocalAuthentication
+
+extension KeychainKey where Value == String {
+  static let vaultPassword = KeychainKey("vault.password", authentication: .biometricOrPasscode)
+}
+
+let context = LAContext()
+try await context.evaluatePolicy(.deviceOwnerAuthentication, localizedReason: "Unlock your vault")
+let password = try await keychain.load(for: .vaultPassword, context: AuthContext(context))
+
+// Never prompts, even for the gated item:
+let present = await keychain.exists(for: .vaultPassword)
+let label = try await keychain.attributes(for: .vaultPassword)?.label</code></pre></div>
+      </div>
+
+      <div class="panel" role="tabpanel" id="panel-enclave" aria-labelledby="tab-enclave">
+        <p>Create a P-256 key inside the Secure Enclave and sign with it. The keychain stores only the key's encrypted handle.</p>
+        <div class="code"><div class="bar"><i></i><i></i><i></i><span>DeviceRegistration.swift</span></div>
+<pre><code class="swift">import Dependencies
+import Keychain
+
+extension SecureEnclaveKey&lt;Signing&gt; {
+  static let paymentApproval = SecureEnclaveKey("payment.approval", authentication: .biometricCurrentSet)
+}
+
+struct DeviceRegistration {
+  @Dependency(\.secureEnclave) var secureEnclave
+
+  func register() async throws -&gt; SecureEnclavePublicKey {
+    guard secureEnclave.isAvailable() else { throw KeychainError.secureEnclaveUnavailable }
+    return try await secureEnclave.publicKeyCreatingIfNeeded(for: .paymentApproval)
+  }
+
+  func approve(_ payment: Data) async throws -&gt; Data {
+    try await secureEnclave.sign(payment, with: .paymentApproval)  // DER ECDSA over SHA-256
+  }
+}</code></pre></div>
+      </div>
+
+      <div class="panel" role="tabpanel" id="panel-tests" aria-labelledby="tab-tests">
+        <p>Tests get an unimplemented client that fails on any call you didn't expect. Choose the store each test needs, prompts included.</p>
+        <div class="code"><div class="bar"><i></i><i></i><i></i><span>SessionTests.swift</span></div>
+<pre><code class="swift">import DependenciesTestSupport
+import Keychain
+import Testing
+
+@Suite(.dependencies { $0.keychain = .inMemory() })
+struct SessionTests {
+  @Test func bearerUsesTheSavedToken() async throws {
+    let session = Session()
+
+    try await session.logIn(token: "t0k3n")
+
+    #expect(try await session.bearer() == "Bearer t0k3n")
+  }
+
+  @Test func aRefusedPromptThrows() async throws {
+    let keychain = try KeychainClient.inMemory(authenticate: { _, _ in false }) {
+      try KeychainEntry(Secret("open sesame"), for: .vaultPassword)
+    }
+
+    await #expect(throws: KeychainError.authenticationFailed) {
+      try await keychain.load(for: .vaultPassword)
+    }
+  }
+}</code></pre></div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<section id="quality">
+  <div class="wrap">
+    <p class="eyebrow">Held to its own rules</p>
+    <h2>Checked on every pull request.</h2>
+    <div class="stats">
+      <div class="stat"><b>13</b><span><a href="https://github.com/mackoj/swift-keychain/blob/main/docs/architecture-rules.md">architecture rules</a>, run as tests with swift-llm-check</span></div>
+      <div class="stat"><b>13</b><span><a href="https://github.com/mackoj/swift-keychain/blob/main/docs/DECISIONS.md">numbered decisions</a> behind the behaviour</span></div>
+      <div class="stat"><b>5</b><span>platforms built in CI, plus the interface on Linux</span></div>
+      <div class="stat"><b>~0.3 ms</b><span>for <code>exists</code> on the login keychain (<a href="https://github.com/mackoj/swift-keychain/blob/main/docs/performance.md">benchmarks</a>)</span></div>
+    </div>
+  </div>
+</section>
+
+<section id="install">
+  <div class="wrap">
+    <p class="eyebrow">Install</p>
+    <h2>Add it with Swift Package Manager.</h2>
+    <div class="install">
+      <div class="code">
+        <div class="bar"><i></i><i></i><i></i><span>Package.swift</span><button class="copy" data-copy="install-snippet" type="button">Copy</button></div>
+<pre><code class="swift" id="install-snippet">.package(url: "https://github.com/mackoj/swift-keychain", from: "0.4.1"),</code></pre>
+      </div>
+      <div>
+        <ul>
+          <li><code>Keychain</code>: every module that reads or writes secrets, and their tests. Links only swift-dependencies.</li>
+          <li><code>KeychainLive</code>: the app target only. Links Security and CryptoKit.</li>
+          <li>iOS 16, macOS 13, tvOS 16, watchOS 9, visionOS 1. Swift 6.2 tools.</li>
+          <li>On macOS the live client uses the data protection keychain, which needs the <code>keychain-access-groups</code> entitlement; pass <code>dataProtection: false</code> for an unsigned tool.</li>
+        </ul>
+        <p class="small">Read the <a href="https://github.com/mackoj/swift-keychain#readme">guide</a> for every method and test double, <a href="https://github.com/mackoj/swift-keychain/blob/main/docs/PLAN.md">the spec</a> for what the package is and is not.</p>
+      </div>
+    </div>
+  </div>
+</section>
+</main>
+
+<footer>
+  <div class="wrap">
+    <span>swift-keychain</span>
+    <a href="https://github.com/mackoj/swift-keychain">GitHub</a>
+    <a href="https://github.com/mackoj/swift-keychain/releases">Releases</a>
+    <a href="https://github.com/mackoj/swift-keychain/blob/main/docs/DECISIONS.md">Decisions</a>
+    <a href="https://github.com/mackoj/swift-keychain/blob/main/docs/performance.md">Performance</a>
+    <a href="https://github.com/pointfreeco/swift-dependencies">swift-dependencies</a>
+  </div>
+</footer>
+
+<script>
+// Tabs: without JavaScript every example is shown, one after another.
+document.documentElement.classList.add("js");
+const tabs = [...document.querySelectorAll('[role="tab"]')];
+function select(tab, focus) {
+  for (const t of tabs) {
+    const on = t === tab;
+    t.setAttribute("aria-selected", on);
+    t.tabIndex = on ? 0 : -1;
+    document.getElementById(t.getAttribute("aria-controls")).hidden = !on;
+  }
+  if (focus) tab.focus();
+}
+tabs.forEach((tab, i) => {
+  tab.addEventListener("click", () => select(tab));
+  tab.addEventListener("keydown", (e) => {
+    const step = e.key === "ArrowRight" ? 1 : e.key === "ArrowLeft" ? -1 : 0;
+    if (step) select(tabs[(i + step + tabs.length) % tabs.length], true);
+  });
+});
+select(tabs[0]);
+
+// A small Swift highlighter: comments, strings, keywords, types and numbers.
+const keywords = new Set("let var func for in where if guard case switch default try throws throw return import struct enum extension init self true false nil async await static".split(" "));
+const escape = (s) => s.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
+const token = /(\/\/[^\n]*)|("(?:[^"\\\n]|\\.)*")|\b([A-Z][A-Za-z0-9]*)\b|\b([a-z]+)\b|\b(\d+(?:\.\d+)?)\b/g;
+for (const code of document.querySelectorAll("code.swift")) {
+  const text = code.textContent;
+  let html = "", last = 0;
+  for (const m of text.matchAll(token)) {
+    html += escape(text.slice(last, m.index));
+    const [all, comment, string, type, word, number] = m;
+    if (comment) html += `<span class="tok-c">${escape(all)}</span>`;
+    else if (string) html += `<span class="tok-s">${escape(all)}</span>`;
+    else if (type) html += `<span class="tok-t">${escape(all)}</span>`;
+    else if (word && keywords.has(word)) html += `<span class="tok-k">${escape(all)}</span>`;
+    else if (number) html += `<span class="tok-n">${escape(all)}</span>`;
+    else html += escape(all);
+    last = m.index + all.length;
+  }
+  code.innerHTML = html + escape(text.slice(last));
+}
+
+// Copy buttons.
+for (const button of document.querySelectorAll("[data-copy]")) {
+  button.addEventListener("click", async () => {
+    const text = document.getElementById(button.dataset.copy).textContent;
+    try { await navigator.clipboard.writeText(text); button.textContent = "Copied"; }
+    catch { button.textContent = "Select and copy"; }
+    setTimeout(() => (button.textContent = "Copy"), 1600);
+  });
+}
+</script>
+
+</html>
