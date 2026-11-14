@@ -14,8 +14,7 @@
   /// ```
   ///
   /// Without a context, the system prompts on each read of a protected item.
-  public struct AuthContext: @unchecked Sendable {
-    // `LAContext` is thread-safe; this wrapper never mutates it.
+  public struct AuthContext: @unchecked Sendable {  // `LAContext` is thread-safe; never mutated.
     public let context: LAContext
 
     public init(_ context: LAContext) {

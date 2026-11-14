@@ -29,14 +29,20 @@ A Swift package: a testable keychain and Secure Enclave, as two
   live store needs a live test, and the in-memory store must behave the same (same errors, same stream order).
 - **Style:** `.swift-format` (2 spaces, 100 columns). Match the surrounding code's comment density: doc comments
   on public API, a line of *why* where code is not obvious, nothing else.
+- **Architecture rules:** the mechanical rules above are tests in `Architecture/` (swift-llm-check), listed in
+  `docs/architecture-rules.md`. A failure prints the rule, why and how to fix it. Change a rule in
+  `Architecture/Tests/ArchitectureTests/Rules.swift`, then regenerate the doc with
+  `LLM_CHECK_RECORD=1 xcrun swift test --package-path Architecture`.
 
 ## Commands
 - **Toolchain:** always `xcrun swift …` / `xcodebuild`. A bare `swift` may be swiftly's open-source toolchain.
 - `scripts/test.sh [filter]`: tests, with a summary in `build/test-summary.md`. Pipe long logs through
   `xcsift -f toon` when installed.
-- `scripts/ci.sh`: the full gate CI runs: build, tests, swift-format lint, secret scan, `exposeSecret` audit.
+- `scripts/ci.sh`: the full gate CI runs: build, tests, swift-format lint, secret scan, `exposeSecret` audit,
+  architecture rules.
   `scripts/ci.sh --platforms` also builds for iOS, tvOS, watchOS and visionOS.
 - `scripts/format.sh`: format in place.
+- `xcrun swift test --package-path Architecture`: the architecture rules alone.
 
 ## Workflow
 - One branch and one PR per task; squash merge. CI (`.github/workflows/ci.yml`) must be green: macOS (full
