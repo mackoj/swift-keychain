@@ -8,19 +8,6 @@ enum Detect {
     scope.imports(of: "Security")
   }
 
-  /// Top-level statements outside an `#if` whose first condition includes `canImport(Security)`.
-  static func unguardedLiveCode(in scope: Scope) -> [Match<Syntax>] {
-    scope.files.flatMap { file in
-      file.syntax.statements.filter { statement in
-        guard let ifConfig = statement.item.as(IfConfigDeclSyntax.self),
-          let condition = ifConfig.clauses.first?.condition?.trimmedDescription
-        else { return true }
-        return !condition.contains("canImport(Security)")
-      }
-      .map { Match(node: Syntax($0), file: file) }
-    }
-  }
-
   /// Calls to `SecItemAdd`, `SecItemCopyMatching`, `SecItemUpdate` and `SecItemDelete` outside
   /// `KeychainStore.swift`.
   static func secItemCallsOutsideTheStore(in scope: Scope) -> [Match<FunctionCallExprSyntax>] {
@@ -80,45 +67,11 @@ enum Detect {
     }
   }
 
-  /// `@unchecked Sendable` conformances whose declaration has no `//` comment. Doc comments
-  /// describe the type to users; they don't count.
-  static func uncommentedUncheckedSendable(in scope: Scope) -> [Match<AttributeSyntax>] {
-    scope.containing("@unchecked").nodes(of: AttributeSyntax.self) { match in
-      guard match.node.attributeName.trimmedDescription == "unchecked" else { return false }
-      let declaration = sequence(first: Syntax(match.node), next: \.parent).first {
-        $0.is(DeclSyntax.self)
-      }
-      let comments = declaration.map(commentsOnDeclarationLine) ?? []
-      return !comments.contains { $0.hasPrefix("//") && !$0.hasPrefix("///") }
-    }
-  }
-
-  /// The declaration's leading comments, and one at the end of the line its body opens on.
-  private static func commentsOnDeclarationLine(_ declaration: Syntax) -> [String] {
-    let leading = declaration.leadingComments
-    let brace = declaration.tokens(viewMode: .sourceAccurate).first {
-      $0.tokenKind == .leftBrace
-    }
-    return leading + (brace?.trailingComments ?? [])
-  }
-
-  /// `import XCTest`.
-  static func xcTestImports(in scope: Scope) -> [Match<ImportDeclSyntax>] {
-    scope.imports(of: "XCTest")
-  }
-
-  /// The `.disabled(…)` trait, wherever a test or suite takes it.
-  static func disabledTests(in scope: Scope) -> [Match<FunctionCallExprSyntax>] {
-    scope.calls(named: "disabled").filter { call in
-      call.node.receiver == nil && call.node.calledExpression.is(MemberAccessExprSyntax.self)
-    }
-  }
-
   /// Top-level `@Suite` types whose attribute doesn't gate them on `liveTestsEnabled`.
   static func ungatedLiveSuites(in scope: Scope) -> [Declaration] {
     scope.topLevelDeclarations.filter { $0.hasAttribute("Suite") }.filter { suite in
-      let attributes = suite.syntax.asProtocol(WithAttributesSyntax.self)?.attributes
-      return !(attributes?.trimmedDescription.contains(".enabled(if: liveTestsEnabled") ?? false)
+      let arguments = suite.attribute("Suite")?.arguments?.trimmedDescription ?? ""
+      return !arguments.contains(".enabled(if: liveTestsEnabled")
     }
   }
 
