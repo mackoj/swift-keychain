@@ -16,7 +16,7 @@ struct ArchitectureRules {
   @Test func liveCodeIsGuarded() throws {
     let live = try Self.sources().in("Sources/KeychainLive")
     #expect(live.relativePaths.count >= 3)
-    expectNone(Detect.unguardedLiveCode(in: live), rule: .liveCodeIsGuarded)
+    expectNone(live.topLevelStatements(notUnder: "canImport(Security)"), rule: .liveCodeIsGuarded)
   }
 
   @Test func secItemCallsStayInTheStore() throws {
@@ -58,7 +58,7 @@ struct ArchitectureRules {
 
   @Test func uncheckedSendableExplainsItself() throws {
     expectNone(
-      Detect.uncommentedUncheckedSendable(in: try Self.sources()),
+      try Self.sources().uncommentedUncheckedSendable,
       rule: .uncheckedSendableExplainsItself
     )
   }
@@ -66,11 +66,11 @@ struct ArchitectureRules {
   @Test func testsUseSwiftTesting() throws {
     let tests = try Self.tests()
     #expect(tests.containing("import Testing").relativePaths.count >= 4)
-    expectNone(Detect.xcTestImports(in: tests), rule: .testsUseSwiftTesting)
+    expectNone(tests.xcTestImports, rule: .testsUseSwiftTesting)
   }
 
   @Test func testsAreNotDisabled() throws {
-    expectNone(Detect.disabledTests(in: try Self.tests()), rule: .testsAreNotDisabled)
+    expectNone(try Self.tests().disabledTests, rule: .testsAreNotDisabled)
   }
 
   @Test func liveSuitesCanBeSkipped() throws {

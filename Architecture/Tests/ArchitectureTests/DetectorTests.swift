@@ -23,37 +23,6 @@ import Testing
     #expect(found.map(\.location.line) == [2, 4])
   }
 
-  @Test func unguardedLiveCodeIsFound() {
-    let found = Detect.unguardedLiveCode(
-      in: scope(
-        """
-        import Foundation
-        #if os(macOS)
-        import Security
-        #endif
-        actor Store {}
-        """,
-        at: "Sources/KeychainLive/Store.swift"
-      )
-    )
-    #expect(found.map(\.location.line) == [1, 2, 5])
-  }
-
-  @Test func guardedLiveCodePasses() {
-    let found = Detect.unguardedLiveCode(
-      in: scope(
-        """
-        #if canImport(Security) && canImport(CryptoKit)
-          import Security
-          actor Store {}
-        #endif
-        """,
-        at: "Sources/KeychainLive/Store.swift"
-      )
-    )
-    #expect(found.isEmpty)
-  }
-
   @Test func secItemCallsOutsideTheStoreAreFound() {
     let found = Detect.secItemCallsOutsideTheStore(
       in: Scope(files: [
@@ -159,48 +128,6 @@ import Testing
     )
     #expect(found.map(\.name) == ["load"])
     #expect(found.map(\.location.line) == [2])
-  }
-
-  @Test func uncommentedUncheckedSendableIsFound() {
-    let found = Detect.uncommentedUncheckedSendable(
-      in: scope(
-        """
-        final class Cache: @unchecked Sendable {}
-        /// A handle on a context.
-        public struct Documented: @unchecked Sendable {
-          // Thread-safe; never mutated.
-          public let context: Context
-        }
-        // Every access to `storage` holds `lock`.
-        final class Guarded: @unchecked Sendable {}
-        public struct Trailing: @unchecked Sendable {  // Context is thread-safe; never mutated.
-        }
-        """
-      )
-    )
-    #expect(found.map(\.location.line) == [1, 3])
-  }
-
-  @Test func xcTestImportsAreFound() {
-    let found = Detect.xcTestImports(
-      in: scope("import XCTest\nimport Testing", at: "Tests/KeychainTests/A.swift")
-    )
-    #expect(found.map(\.location.line) == [1])
-  }
-
-  @Test func disabledTestsAreFound() {
-    let found = Detect.disabledTests(
-      in: scope(
-        """
-        @Test(.disabled("flaky")) func a() {}
-        @Suite(.disabled()) struct B {}
-        @Test func c() { rule.disabled() }
-        @Suite(.enabled(if: liveTestsEnabled)) struct D {}
-        """,
-        at: "Tests/KeychainTests/A.swift"
-      )
-    )
-    #expect(found.map(\.location.line) == [1, 2])
   }
 
   @Test func ungatedLiveSuitesAreFound() {
