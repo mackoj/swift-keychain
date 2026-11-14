@@ -16,6 +16,17 @@
     private let dataProtection: Bool
     private var subscribers = KeychainSubscribers()
 
+    #if canImport(LocalAuthentication)
+      /// The context of every no-prompt query, made once: creating an `LAContext` costs about as
+      /// much as the query itself. It refuses interaction and is never evaluated, so it never
+      /// holds a credential.
+      private lazy var noInteraction: LAContext = {
+        let context = LAContext()
+        context.interactionNotAllowed = true
+        return context
+      }()
+    #endif
+
     /// - Parameter dataProtection: Adds `kSecUseDataProtectionKeychain` on macOS (D-2).
     init(service: String, accessGroup: String?, dataProtection: Bool) {
       self.service = service
@@ -52,7 +63,7 @@
           changes[kSecValueData] = data
           if let attributes { changes.merge(attributes.changes) { $1 } }
           // If the existing item is gated, fail instead of prompting, and replace it below.
-          let match = Self.withoutPrompt(baseQuery(key: key))
+          let match = withoutPrompt(baseQuery(key: key))
           status = SecItemUpdate(match as CFDictionary, changes as CFDictionary)
         } else {
           status = errSecItemNotFound
@@ -94,7 +105,7 @@
       query[kSecReturnData] = true
       query[kSecMatchLimit] = kSecMatchLimitOne
       do {
-        return try copyData(Self.withoutPrompt(query))
+        return try copyData(withoutPrompt(query))
       } catch KeychainError.itemNotFound {
         return nil
       }
@@ -132,7 +143,7 @@
       guard replaced == errSecSuccess || replaced == errSecItemNotFound else {
         throw error(replaced, else: .deleteFailed(replaced))
       }
-      let match = Self.withoutPrompt(baseQuery(key: key))
+      let match = withoutPrompt(baseQuery(key: key))
       let changes = [kSecAttrAccount: newKey] as CFDictionary
       let status = SecItemUpdate(match as CFDictionary, changes)
       guard status == errSecSuccess else { throw error(status, else: .saveFailed(status)) }
@@ -150,7 +161,7 @@
       query[kSecReturnAttributes] = true
       query[kSecMatchLimit] = kSecMatchLimitOne
       var result: AnyObject?
-      let status = SecItemCopyMatching(Self.withoutPrompt(query) as CFDictionary, &result)
+      let status = SecItemCopyMatching(withoutPrompt(query) as CFDictionary, &result)
       if status == errSecItemNotFound { return nil }
       guard status == errSecSuccess else { throw error(status, else: .loadFailed(status)) }
       let item = result as? [CFString: Any] ?? [:]
@@ -163,7 +174,7 @@
     /// Changes the label and comment with `SecItemUpdate`, without the data: no read, no rewrite,
     /// no prompt, and the item keeps its protection (D-13).
     func updateAttributes(_ attributes: KeychainItemAttributes, key: String) throws {
-      let match = Self.withoutPrompt(baseQuery(key: key))
+      let match = withoutPrompt(baseQuery(key: key))
       let status = SecItemUpdate(match as CFDictionary, attributes.changes as CFDictionary)
       guard status == errSecSuccess else { throw error(status, else: .saveFailed(status)) }
     }
@@ -185,7 +196,7 @@
       var query = baseQuery(key: key)
       query[kSecReturnAttributes] = true
       query[kSecMatchLimit] = kSecMatchLimitOne
-      let status = SecItemCopyMatching(Self.withoutPrompt(query) as CFDictionary, nil)
+      let status = SecItemCopyMatching(withoutPrompt(query) as CFDictionary, nil)
       // A gated item answers "interaction not allowed": it exists.
       return status == errSecSuccess || status == errSecInteractionNotAllowed
     }
@@ -195,7 +206,7 @@
       query[kSecReturnAttributes] = true
       query[kSecMatchLimit] = kSecMatchLimitAll
       var result: AnyObject?
-      let status = SecItemCopyMatching(Self.withoutPrompt(query) as CFDictionary, &result)
+      let status = SecItemCopyMatching(withoutPrompt(query) as CFDictionary, &result)
       if status == errSecItemNotFound { return [] }
       guard status == errSecSuccess else { throw error(status, else: .loadFailed(status)) }
       let items = result as? [[CFString: Any]] ?? []
@@ -248,12 +259,10 @@
 
     /// `query` set to fail with `errSecInteractionNotAllowed` instead of prompting.
     /// (tvOS has no LocalAuthentication, and no prompts to suppress.)
-    private static func withoutPrompt(_ query: [CFString: Any]) -> [CFString: Any] {
+    private func withoutPrompt(_ query: [CFString: Any]) -> [CFString: Any] {
       #if canImport(LocalAuthentication)
         var query = query
-        let context = LAContext()
-        context.interactionNotAllowed = true
-        query[kSecUseAuthenticationContext] = context
+        query[kSecUseAuthenticationContext] = noInteraction
         return query
       #else
         return query

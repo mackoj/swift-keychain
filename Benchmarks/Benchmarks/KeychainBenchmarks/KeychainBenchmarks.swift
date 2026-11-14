@@ -122,14 +122,18 @@ let benchmarks: @Sendable () -> Void = {
   Benchmark("In-memory prefill, 100 entries") { benchmark in
     blackHole(
       try KeychainClient.inMemory {
-        for account in accounts { try KeychainEntry(Secret(token), for: KeychainKey<String>(account)) }
+        for account in accounts {
+          try KeychainEntry(Secret(token), for: KeychainKey<String>(account))
+        }
       }
     )
   }
 
   Benchmark("In-memory keys, 100 items") { benchmark in
     let keychain = try KeychainClient.inMemory {
-      for account in accounts { try KeychainEntry(Secret(token), for: KeychainKey<String>(account)) }
+      for account in accounts {
+        try KeychainEntry(Secret(token), for: KeychainKey<String>(account))
+      }
     }
     benchmark.startMeasurement()
     for _ in 0..<100 {
