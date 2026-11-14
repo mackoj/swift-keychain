@@ -5,7 +5,7 @@
 - [x] `KeychainClient`: typed keys, `Secret`, in-memory and no-op doubles, live store, streams (D-3, D-4, D-5)
 - [x] `SecureEnclaveClient`: signing and key agreement, typed purposes, in-memory double, live CryptoKit store (D-6, D-7)
 - [x] Harness: `CLAUDE.md`, `docs/PLAN.md`, `docs/DECISIONS.md`, scripts, swift-format, CI (macOS + Linux)
-- [ ] First CI run green on GitHub (macOS live tests on a hosted runner; Linux interface tests)
+- [x] First CI run green on GitHub (macOS live tests on a hosted runner; Linux interface tests)
 - [x] Tag `0.1.0`
 
 ## Next

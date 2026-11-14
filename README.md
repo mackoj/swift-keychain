@@ -1,5 +1,13 @@
 # swift-keychain
 
+[![CI](https://github.com/mackoj/swift-keychain/actions/workflows/ci.yml/badge.svg)](https://github.com/mackoj/swift-keychain/actions/workflows/ci.yml)
+[![Release](https://img.shields.io/github/v/release/mackoj/swift-keychain)](https://github.com/mackoj/swift-keychain/releases)
+
+**[Website](https://mackoj.github.io/swift-keychain/)** ·
+**[Architecture rules](docs/architecture-rules.md)** ·
+**[Performance](docs/performance.md)** ·
+**[Decisions](docs/DECISIONS.md)**
+
 A testable, type-safe keychain and Secure Enclave for Swift, as two
 [swift-dependencies](https://github.com/pointfreeco/swift-dependencies) clients.
 
@@ -14,7 +22,7 @@ A testable, type-safe keychain and Secure Enclave for Swift, as two
 ## Installation
 
 ```swift
-.package(url: "https://github.com/mackoj/swift-keychain", from: "0.3.0"),
+.package(url: "https://github.com/mackoj/swift-keychain", from: "0.4.1"),
 ```
 
 | Product | Add it to | Links |
@@ -237,4 +245,13 @@ from `CLAUDE.md`.
 scripts/test.sh               # tests (SKIP_LIVE_KEYCHAIN_TESTS=1 skips the real keychain)
 scripts/ci.sh --platforms     # the full gate CI runs
 scripts/format.sh             # swift-format in place
+xcrun swift test --package-path Architecture   # the architecture rules alone
 ```
+
+- **Architecture rules.** `Architecture/` turns the rules in `CLAUDE.md` and `docs/DECISIONS.md` into tests with
+  [swift-llm-check](https://github.com/mackoj/swift-llm-check): the interface never imports Security, every
+  `exposeSecret()` says why, `Secret` is never `Codable`, errors carry no bytes, and so on. The list, with why and
+  how to fix each, is in [docs/architecture-rules.md](docs/architecture-rules.md).
+- **Benchmarks.** `Benchmarks/` measures typed-key coding, `Secret` equality, the in-memory client and the live
+  keychain on [package-benchmark](https://github.com/ordo-one/package-benchmark). How to measure and profile a
+  change, and what has paid off, is in [docs/performance.md](docs/performance.md).
